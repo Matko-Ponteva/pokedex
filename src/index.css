@@ -1,0 +1,9 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #f4f5f8; color: #1a1d29; }
+main { max-width: 960px; margin: 0 auto; padding: 24px; }
+input { width: 100%; padding: 10px 14px; font-size: 16px; border: 1px solid #ccd; border-radius: 8px; margin-bottom: 20px; }
+.grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.card { background: #fff; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; align-items: center; }
+.number { color: #889; font-size: 13px; }
+.name { text-transform: capitalize; font-weight: 600; }
+.status { text-align: center; padding: 40px; }

@@ -1,33 +1,37 @@
 import { useSearchParams } from "react-router";
-import { usePokemonList } from "../hooks/usePokemonList";
-import { PokemonCard } from "../components/PokemonCard";
+import { TypeFilter } from "../components/TypeFilter";
+import { BrowseGrid } from "../components/BrowseGrid";
+import { FilteredGrid } from "../components/FilteredGrid";
 
 export function PokedexPage() {
-  const { data, isPending, isError, error } = usePokemonList();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("q") ?? "";
+  const type = searchParams.get("type");
 
-  if (isPending) return <p className="status">Loading…</p>;
-  if (isError) return <p className="status">Couldn't load Pokémon: {error.message}</p>;
+  function updateParam(key: string, value: string | null) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true }
+    );
+  }
 
-  const query = search.trim().toLowerCase();
-  const filtered = data.results.filter((p) => p.name.includes(query));
+  const isFiltering = search.trim() !== "" || type !== null;
 
   return (
     <main>
       <h1>Pokédex</h1>
       <input
         value={search}
-        onChange={(e) =>
-          setSearchParams(e.target.value ? { q: e.target.value } : {}, { replace: true })
-        }
+        onChange={(e) => updateParam("q", e.target.value)}
         placeholder="Search Pokémon"
       />
-      <ul className="grid">
-        {filtered.map((p) => (
-          <PokemonCard key={p.name} pokemon={p} />
-        ))}
-      </ul>
+      <TypeFilter selected={type} onSelect={(t) => updateParam("type", t)} />
+      {isFiltering ? <FilteredGrid search={search} type={type} /> : <BrowseGrid />}
     </main>
   );
 }

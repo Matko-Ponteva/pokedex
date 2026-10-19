@@ -23,3 +23,10 @@ input { width: 100%; padding: 10px 14px; font-size: 16px; border: 1px solid #ccd
 .evolution { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
 .evo-stage { display: flex; flex-wrap: wrap; gap: 8px; }
 .evo-item { display: flex; flex-direction: column; align-items: center; text-decoration: none; text-transform: capitalize; }
+.type-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+.type-chip {
+  font: inherit; font-size: 13px; text-transform: capitalize;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid #ccd;
+  background: #fff; color: inherit; cursor: pointer;
+}
+.type-chip.active { color: #fff; font-weight: 600; }

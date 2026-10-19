@@ -58,3 +58,24 @@ export function getSpriteUrl(id: number): string {
 export function getArtworkUrl(id: number): string {
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
 }
+
+export const PAGE_SIZE = 24;
+const MAX_SPECIES_ID = 10000;
+
+export function fetchPokemonPage(offset: number) {
+  return fetchJson<PokemonListResponse>(
+    `${BASE_URL}/pokemon?limit=${PAGE_SIZE}&offset=${offset}`
+  );
+}
+
+export type TypeResponse = {
+  pokemon: { slot: number; pokemon: NamedResource }[];
+};
+
+export function fetchType(type: string) {
+  return fetchJson<TypeResponse>(`${BASE_URL}/type/${type}`);
+}
+
+export function isMainSeries(item: PokemonListItem): boolean {
+  return getIdFromUrl(item.url) < MAX_SPECIES_ID;
+}

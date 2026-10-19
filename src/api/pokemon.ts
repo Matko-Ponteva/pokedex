@@ -1,25 +1,60 @@
-export type PokemonListItem = { name: string; url: string };
-
-export type PokemonListResponse = {
-    count: number;
-    next: string | null;
-    previous: string | null;
-    results: PokemonListItem[];
-};
-
 const BASE_URL = "https://pokeapi.co/api/v2";
 
-export async function fetchPokemonList(limit = 1025): Promise<PokemonListResponse> {
-    const res = await fetch(`${BASE_URL}/pokemon?limit=${limit}`);
-    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-    return res.json();
+export async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json() as Promise<T>;
 }
 
+type NamedResource = { name: string; url: string };
+
+// List
+export type PokemonListItem = NamedResource;
+export type PokemonListResponse = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: PokemonListItem[];
+};
+
+export function fetchPokemonList(limit = 151) {
+  return fetchJson<PokemonListResponse>(`${BASE_URL}/pokemon?limit=${limit}`);
+}
+
+// Detail
+export type Pokemon = {
+  id: number;
+  name: string;
+  height: number; // decimetres
+  weight: number; // hectograms
+  types: { slot: number; type: NamedResource }[];
+  stats: { base_stat: number; stat: NamedResource }[];
+  abilities: { is_hidden: boolean; ability: NamedResource }[];
+  species: NamedResource;
+};
+
+export type PokemonSpecies = {
+  evolution_chain: { url: string };
+  flavor_text_entries: { flavor_text: string; language: NamedResource }[];
+};
+
+export type ChainLink = { species: NamedResource; evolves_to: ChainLink[] };
+export type EvolutionChain = { chain: ChainLink };
+
+export function fetchPokemon(id: string) {
+  return fetchJson<Pokemon>(`${BASE_URL}/pokemon/${id}`);
+}
+
+// Helpers
 export function getIdFromUrl(url: string): number {
-    const parts = url.split("/").filter(Boolean);
-    return Number(parts[parts.length - 1]);
+  const parts = url.split("/").filter(Boolean);
+  return Number(parts[parts.length - 1]);
 }
 
 export function getSpriteUrl(id: number): string {
-    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+}
+
+export function getArtworkUrl(id: number): string {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
 }

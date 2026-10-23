@@ -1,17 +1,19 @@
 import { Link } from "react-router";
-import { getIdFromUrl, getSpriteUrl, type PokemonListItem } from "../api/pokemon";
+import type { PokemonSummary } from "@pokedex/shared";
+import { TypeBadge } from "./TypeBadge";
 
-type Props = { pokemon: PokemonListItem };
-
-export function PokemonCard({ pokemon }: Props) {
-  const id = getIdFromUrl(pokemon.url);
-
+export function PokemonCard({ pokemon }: { pokemon: PokemonSummary }) {
   return (
     <li>
-      <Link to={`/pokemon/${id}`} className="card">
-        <img src={getSpriteUrl(id)} alt={pokemon.name} width={96} height={96} />
-        <span className="number">#{String(id).padStart(3, "0")}</span>
+      <Link to={`/pokemon/${pokemon.id}`} className="card">
+        <img src={pokemon.spriteUrl} alt={pokemon.name} width={96} height={96} loading="lazy" />
+        <span className="number">#{String(pokemon.id).padStart(3, "0")}</span>
         <span className="name">{pokemon.name}</span>
+        <div className="card-types">
+          {pokemon.types.map((type) => (
+            <TypeBadge key={type} type={type} />
+          ))}
+        </div>
       </Link>
     </li>
   );

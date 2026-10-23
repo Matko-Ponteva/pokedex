@@ -1,14 +1,15 @@
-import { TYPE_COLORS, TYPES } from "../data/types";
+import { POKEMON_TYPES, type PokemonType } from "@pokedex/shared";
+import { TYPE_COLORS } from "../data/types";
 
 type Props = {
-  selected: string | null;
-  onSelect: (type: string | null) => void;
+  selected: PokemonType | null;
+  onSelect: (type: PokemonType | null) => void;
 };
 
 export function TypeFilter({ selected, onSelect }: Props) {
   return (
     <div className="type-filter">
-      {TYPES.map((type) => {
+      {POKEMON_TYPES.map((type) => {
         const active = type === selected;
         return (
           <button

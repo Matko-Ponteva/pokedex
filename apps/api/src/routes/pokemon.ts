@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getPokemon, listPokemon } from "../services/pokemonService.ts";
-import { POKEMON_TYPES } from "../lib/pokemonTypes.ts";
+import { DEFAULT_PAGE_SIZE, POKEMON_TYPES } from "@pokedex/shared";
 
 export const pokemonRouter = Router();
 
@@ -9,7 +9,7 @@ const listQuery = z.object({
   search: z.string().trim().toLowerCase().max(50).regex(/^[a-z0-9-]*$/).optional(),
   type: z.enum(POKEMON_TYPES).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(24),
+  pageSize: z.coerce.number().int().min(1).max(100).default(DEFAULT_PAGE_SIZE),
 });
 
 pokemonRouter.get("/", async (req, res) => {

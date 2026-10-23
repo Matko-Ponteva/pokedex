@@ -1,12 +1,19 @@
 import { useSearchParams } from "react-router";
+import { isPokemonType } from "@pokedex/shared";
 import { TypeFilter } from "../components/TypeFilter";
-import { BrowseGrid } from "../components/BrowseGrid";
-import { FilteredGrid } from "../components/FilteredGrid";
+import { PokemonResults } from "../components/PokemonResults";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+
+function toSearchTerm(input: string): string {
+  return input.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
 
 export function PokedexPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("q") ?? "";
-  const type = searchParams.get("type");
+  const typeParam = searchParams.get("type");
+  const type = isPokemonType(typeParam) ? typeParam : null;
+  const debouncedSearch = useDebouncedValue(search);
 
   function updateParam(key: string, value: string | null) {
     setSearchParams(
@@ -20,8 +27,6 @@ export function PokedexPage() {
     );
   }
 
-  const isFiltering = search.trim() !== "" || type !== null;
-
   return (
     <main>
       <h1>Pokédex</h1>
@@ -31,7 +36,7 @@ export function PokedexPage() {
         placeholder="Search Pokémon"
       />
       <TypeFilter selected={type} onSelect={(t) => updateParam("type", t)} />
-      {isFiltering ? <FilteredGrid search={search} type={type} /> : <BrowseGrid />}
+      <PokemonResults search={toSearchTerm(debouncedSearch)} type={type} />
     </main>
   );
 }

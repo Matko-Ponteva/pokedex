@@ -30,3 +30,6 @@ input { width: 100%; padding: 10px 14px; font-size: 16px; border: 1px solid #ccd
   background: #fff; color: inherit; cursor: pointer;
 }
 .type-chip.active { color: #fff; font-weight: 600; }
+.card-types { display: flex; gap: 4px; margin-top: 6px; }
+.card-types .type-badge { font-size: 11px; padding: 2px 8px; }
+.stale { opacity: 0.6; transition: opacity 0.2s; }

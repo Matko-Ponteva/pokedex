@@ -1,5 +1,5 @@
 import { HttpError } from "./errors.ts";
-import { POKEMON_TYPES, type PokemonType } from "./pokemonTypes.ts";
+import { POKEMON_TYPES, type EvolutionStage, type PokemonDetail, type PokemonSummary, type PokemonType } from "@pokedex/shared";
 
 const BASE_URL = "https://pokeapi.co/api/v2";
 const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
@@ -25,29 +25,6 @@ type RawSpecies = {
 };
 type RawChainLink = { species: NamedResource; evolves_to: RawChainLink[] };
 type RawEvolutionChain = { chain: RawChainLink };
-
-// Our API's shapes
-export type PokemonSummary = {
-  id: number;
-  name: string;
-  types: PokemonType[];
-  spriteUrl: string;
-};
-
-export type EvolutionStage = { id: number; name: string; spriteUrl: string }[];
-
-export type PokemonDetail = {
-  id: number;
-  name: string;
-  types: PokemonType[];
-  heightMeters: number;
-  weightKg: number;
-  description: string | null;
-  artworkUrl: string;
-  stats: { name: string; value: number }[];
-  abilities: { name: string; hidden: boolean }[];
-  evolution: EvolutionStage[];
-};
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);

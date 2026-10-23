@@ -1,8 +1,8 @@
 import { and, arrayContains, asc, count, eq, ilike, type SQL } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { pokemon, pokemonDetails } from "../db/schema.ts";
-import { fetchPokemonDetail, fetchPokemonIndex, type PokemonDetail } from "../lib/pokeapi.ts";
-import type { PokemonType } from "../lib/pokemonTypes.ts";
+import { fetchPokemonDetail, fetchPokemonIndex } from "../lib/pokeapi.ts";
+import type { PokemonDetail, PokemonListResponse, PokemonType } from "@pokedex/shared";
 
 async function ensureIndex() {
   const [{ total }] = await db.select({ total: count() }).from(pokemon);
@@ -19,7 +19,7 @@ type ListOptions = {
   pageSize: number;
 };
 
-export async function listPokemon({ search, type, page, pageSize }: ListOptions) {
+export async function listPokemon({ search, type, page, pageSize }: ListOptions): Promise<PokemonListResponse> {
   await ensureIndex();
 
   const filters: SQL[] = [];

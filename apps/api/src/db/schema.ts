@@ -1,6 +1,5 @@
 import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import type { PokemonDetail } from "../lib/pokeapi.ts";
-import type { PokemonType } from "../lib/pokemonTypes.ts";
+import type { PokemonDetail, PokemonType } from "@pokedex/shared";
 
 export const pokemon = pgTable("pokemon", {
   id: integer("id").primaryKey(),

@@ -8,6 +8,13 @@
       "when": 1792485863536,
       "tag": "0000_dapper_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792753757261,
+      "tag": "0001_sticky_prism",
+      "breakpoints": true
     }
   ]
 }

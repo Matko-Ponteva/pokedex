@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export const POKEMON_TYPES = [
   "normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground",
   "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy",
@@ -45,3 +47,37 @@ export type ApiError = {
   error: string;
   details?: { field: string; message: string }[];
 };
+
+export type User = {
+  id: number;
+  email: string;
+  displayName: string;
+};
+
+const emailField = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254)
+  .pipe(z.email("Enter a valid email address"));
+
+export const signUpSchema = z.object({
+  email: emailField,
+  displayName: z
+    .string()
+    .trim()
+    .min(2, "Display name must be at least 2 characters")
+    .max(30, "Display name can be at most 30 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password can be at most 128 characters"),
+});
+
+export const logInSchema = z.object({
+  email: emailField,
+  password: z.string().min(1, "Enter your password").max(128),
+});
+
+export type SignUpInput = z.infer<typeof signUpSchema>;
+export type LogInInput = z.infer<typeof logInSchema>;

@@ -6,6 +6,7 @@ import { PokemonDetailPage } from "./pages/PokemonDetailPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SignUpPage } from "./pages/SignUpPage";
 import { TeamsPage } from "./pages/TeamsPage";
+import { TeamEditorPage } from "./pages/TeamEditorPage";
 
 function NotFoundPage() {
   return (
@@ -26,6 +27,8 @@ export default function App() {
         <Route path="/signup" element={<SignUpPage />} />
         <Route element={<RequireAuth />}>
           <Route path="/teams" element={<TeamsPage />} />
+          <Route path="/teams/new" element={<TeamEditorPage />} />
+          <Route path="/teams/:id" element={<TeamEditorPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

@@ -41,9 +41,17 @@ export async function listPokemon({ search, type, page, pageSize }: ListOptions)
 
 export async function getPokemon(id: number): Promise<PokemonDetail> {
   const [row] = await db.select().from(pokemonDetails).where(eq(pokemonDetails.id, id));
-  if (row) return row.data;
+
+  // Rows saved before learnsets were added have no moves: treat them as missing
+  if (row && Array.isArray(row.data.moves)) return row.data;
 
   const detail = await fetchPokemonDetail(id);
-  await db.insert(pokemonDetails).values({ id, data: detail }).onConflictDoNothing();
+  await db
+    .insert(pokemonDetails)
+    .values({ id, data: detail })
+    .onConflictDoUpdate({
+      target: pokemonDetails.id,
+      set: { data: detail, fetchedAt: new Date() },
+    });
   return detail;
 }

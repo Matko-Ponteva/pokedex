@@ -1,19 +1,31 @@
+import { Link } from "react-router";
 import { useCurrentUser } from "../hooks/useAuth";
-import { useTeams } from "../hooks/useTeams";
+import { useDeleteTeam, useTeams } from "../hooks/useTeams";
 
 export function TeamsPage() {
   const { data: user } = useCurrentUser();
   const { data: teams, isPending, isError, error } = useTeams();
+  const deleteTeam = useDeleteTeam();
 
   if (isPending) return <p className="status">Loading…</p>;
   if (isError) return <p className="status">Couldn't load your teams: {error.message}</p>;
 
   return (
     <main>
-      <h1>My teams</h1>
+      <div className="page-header">
+        <h1>My teams</h1>
+        <Link to="/teams/new" className="button">New team</Link>
+      </div>
       <p className="muted">Logged in as {user?.displayName}</p>
+
+      {deleteTeam.isError && (
+        <p className="form-error" role="alert">
+          Couldn't delete the team: {deleteTeam.error.message}
+        </p>
+      )}
+
       {teams.length === 0 ? (
-        <p className="muted">You don't have any teams yet. The team editor arrives in part 4.</p>
+        <p className="muted">You don't have any teams yet. Create your first one!</p>
       ) : (
         <ul className="team-list">
           {teams.map((team) => (
@@ -29,6 +41,18 @@ export function TeamsPage() {
                     height={64}
                   />
                 ))}
+              </div>
+              <div className="team-actions">
+                <Link to={`/teams/${team.id}`}>Edit</Link>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    if (window.confirm(`Delete "${team.name}"?`)) deleteTeam.mutate(team.id);
+                  }}
+                >
+                  Delete
+                </button>
               </div>
             </li>
           ))}

@@ -3,10 +3,7 @@ import { isPokemonType } from "@pokedex/shared";
 import { TypeFilter } from "../components/TypeFilter";
 import { PokemonResults } from "../components/PokemonResults";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-
-function toSearchTerm(input: string): string {
-  return input.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-}
+import { toSearchTerm } from "../lib/search"
 
 export function PokedexPage() {
   const [searchParams, setSearchParams] = useSearchParams();

@@ -3,7 +3,7 @@ import type { Team, TeamInput } from "@pokedex/shared";
 import { db } from "../db/client.ts";
 import { pokemon, teamMembers, teams } from "../db/schema.ts";
 import { HttpError } from "../lib/errors.ts";
-import { ensureIndex } from "./pokemonService.ts";
+import { ensureIndex, getPokemon } from "./pokemonService.ts";
 
 type TeamRow = typeof teams.$inferSelect;
 
@@ -42,13 +42,25 @@ async function findOwnedTeam(userId: number, teamId: number): Promise<TeamRow> {
   return team;
 }
 
-async function assertPokemonExist(input: TeamInput) {
+async function validateMembers(input: TeamInput) {
   const ids = [...new Set(input.members.map((m) => m.pokemonId))];
   if (ids.length === 0) return;
 
   await ensureIndex();
   const found = await db.select({ id: pokemon.id }).from(pokemon).where(inArray(pokemon.id, ids));
   if (found.length !== ids.length) throw new HttpError(400, "The team contains an unknown Pokémon");
+
+  const details = await Promise.all(ids.map((id) => getPokemon(id)));
+  const detailsById = new Map(details.map((detail) => [detail.id, detail]));
+
+  for (const member of input.members) {
+    const detail = detailsById.get(member.pokemonId);
+    if (!detail) continue;
+    const invalid = member.moves.find((move) => !detail.moves.includes(move));
+    if (invalid) {
+      throw new HttpError(400, `${detail.name} can't learn ${invalid.replaceAll("-", " ")}`);
+    }
+  }
 }
 
 function memberRows(teamId: number, input: TeamInput) {
@@ -76,7 +88,7 @@ export async function getTeam(userId: number, teamId: number): Promise<Team> {
 }
 
 export async function createTeam(userId: number, input: TeamInput): Promise<Team> {
-  await assertPokemonExist(input);
+  await validateMembers(input);
 
   const teamId = await db.transaction(async (tx) => {
     const [team] = await tx
@@ -94,7 +106,7 @@ export async function createTeam(userId: number, input: TeamInput): Promise<Team
 
 export async function updateTeam(userId: number, teamId: number, input: TeamInput): Promise<Team> {
   await findOwnedTeam(userId, teamId);
-  await assertPokemonExist(input);
+  await validateMembers(input);
 
   await db.transaction(async (tx) => {
     await tx

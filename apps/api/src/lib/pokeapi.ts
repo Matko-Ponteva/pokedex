@@ -18,6 +18,7 @@ type RawPokemon = {
   stats: { base_stat: number; stat: NamedResource }[];
   abilities: { is_hidden: boolean; ability: NamedResource }[];
   species: NamedResource;
+  moves: { move: NamedResource }[];
 };
 type RawSpecies = {
   evolution_chain: { url: string } | null;
@@ -75,6 +76,7 @@ export async function fetchPokemonDetail(id: number): Promise<PokemonDetail> {
   if (species.evolution_chain) {
     const chain = await fetchJson<RawEvolutionChain>(species.evolution_chain.url);
     evolution = toStages(chain.chain);
+    
   }
 
   const flavor = species.flavor_text_entries.find((e) => e.language.name === "en");
@@ -93,6 +95,7 @@ export async function fetchPokemonDetail(id: number): Promise<PokemonDetail> {
       hidden: a.is_hidden,
     })),
     evolution,
+    moves: pokemon.moves.map((m) => m.move.name).sort(),
   };
 }
 

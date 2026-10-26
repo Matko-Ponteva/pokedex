@@ -41,6 +41,7 @@ export type PokemonDetail = {
   stats: { name: string; value: number }[];
   abilities: { name: string; hidden: boolean }[];
   evolution: EvolutionStage[];
+  moves: string[];
 };
 
 export type ApiError = {

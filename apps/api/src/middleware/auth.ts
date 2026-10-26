@@ -1,8 +1,10 @@
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
+import type { User } from "@pokedex/shared";
 import { HttpError } from "../lib/errors.ts";
 import {
   clearSessionCookie, SESSION_COOKIE, setSessionCookie, validateSession,
 } from "../lib/sessions.ts";
+
 
 export const loadSession: RequestHandler = async (req, res, next) => {
   const token: unknown = req.cookies?.[SESSION_COOKIE];
@@ -24,3 +26,8 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
   if (!req.user) throw new HttpError(401, "You need to be logged in");
   next();
 };
+
+export function currentUser(req: Request): User {
+  if (!req.user) throw new HttpError(401, "You need to be logged in");
+  return req.user;
+}

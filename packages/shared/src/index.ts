@@ -81,3 +81,43 @@ export const logInSchema = z.object({
 
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type LogInInput = z.infer<typeof logInSchema>;
+
+const moveName = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(50)
+  .regex(/^[a-z0-9-]+$/, "Move names use lowercase letters, digits and hyphens");
+
+export const teamMemberInputSchema = z.object({
+  pokemonId: z.number().int().positive(),
+  moves: z
+    .array(moveName)
+    .max(4, "A Pokémon can know at most 4 moves")
+    .refine((moves) => new Set(moves).size === moves.length, "Each move can only be chosen once"),
+});
+
+export const teamInputSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Give your team a name")
+    .max(40, "Team names can be at most 40 characters"),
+  members: z.array(teamMemberInputSchema).max(6, "A team can have at most 6 Pokémon"),
+});
+
+export type TeamInput = z.infer<typeof teamInputSchema>;
+
+export type TeamMember = {
+  slot: number;
+  pokemon: PokemonSummary;
+  moves: string[];
+};
+
+export type Team = {
+  id: number;
+  name: string;
+  members: TeamMember[];
+  createdAt: string;
+  updatedAt: string;
+};

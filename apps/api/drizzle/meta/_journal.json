@@ -15,6 +15,13 @@
       "when": 1792753757261,
       "tag": "0001_sticky_prism",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793000317172,
+      "tag": "0002_opposite_shadowcat",
+      "breakpoints": true
     }
   ]
 }

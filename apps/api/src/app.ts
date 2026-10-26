@@ -2,6 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { pokemonRouter } from "./routes/pokemon.ts";
 import { authRouter } from "./routes/auth.ts";
+import { teamsRouter } from "./routes/teams.ts";
 import { requestLogger } from "./middleware/requestLogger.ts";
 import { loadSession } from "./middleware/auth.ts";
 import { errorHandler } from "./middleware/errorHandler.ts";
@@ -21,6 +22,7 @@ export function createApp() {
   });
   app.use("/api/auth", authRouter);
   app.use("/api/pokemon", pokemonRouter);
+  app.use("/api/teams", teamsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });

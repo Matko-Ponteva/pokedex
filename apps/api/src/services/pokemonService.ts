@@ -4,7 +4,7 @@ import { pokemon, pokemonDetails } from "../db/schema.ts";
 import { fetchPokemonDetail, fetchPokemonIndex } from "../lib/pokeapi.ts";
 import type { PokemonDetail, PokemonListResponse, PokemonType } from "@pokedex/shared";
 
-async function ensureIndex() {
+export async function ensureIndex() {
   const [{ total }] = await db.select({ total: count() }).from(pokemon);
   if (total > 0) return;
 

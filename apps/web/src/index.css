@@ -33,3 +33,22 @@ input { width: 100%; padding: 10px 14px; font-size: 16px; border: 1px solid #ccd
 .card-types { display: flex; gap: 4px; margin-top: 6px; }
 .card-types .type-badge { font-size: 11px; padding: 2px 8px; }
 .stale { opacity: 0.6; transition: opacity 0.2s; }
+.app-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; max-width: 960px; margin: 0 auto; padding: 16px 24px 0; }
+.app-nav { display: flex; gap: 16px; }
+.app-nav a { color: #4058c8; text-decoration: none; font-weight: 600; }
+.app-nav a.active { text-decoration: underline; text-underline-offset: 4px; }
+.app-user { display: flex; align-items: center; gap: 12px; }
+button { font: inherit; padding: 8px 16px; border-radius: 8px; border: none; background: #4058c8; color: #fff; cursor: pointer; }
+button:disabled { opacity: 0.6; cursor: default; }
+.auth-page { max-width: 400px; }
+.auth-form { display: flex; flex-direction: column; margin-bottom: 16px; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field label { font-weight: 600; }
+.field input { margin-bottom: 0; }
+.field input[aria-invalid="true"] { border-color: #c62828; }
+.field-error, .form-error { color: #c62828; font-size: 14px; margin: 0; }
+.form-error { margin-bottom: 12px; }
+.team-list { list-style: none; padding: 0; display: grid; gap: 12px; }
+.team-card { background: #fff; border-radius: 12px; padding: 16px; }
+.team-card h2 { margin: 0 0 8px; font-size: 18px; text-transform: none; }
+.team-sprites { display: flex; flex-wrap: wrap; gap: 4px; }

@@ -1,29 +1,12 @@
 import {
   DEFAULT_PAGE_SIZE,
-  type ApiError,
   type PokemonDetail,
   type PokemonListResponse,
   type PokemonType,
 } from "@pokedex/shared";
 
-export class HttpError extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "HttpError";
-    this.status = status;
-  }
-}
-
-async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`/api${path}`);
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as ApiError | null;
-    throw new HttpError(res.status, body?.error ?? `Request failed: ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
+import { apiRequest } from "./client";
+export { HttpError } from "./client";
 
 type ListParams = {
   search: string;
@@ -38,9 +21,9 @@ export function fetchPokemonPage({ search, type, page }: ListParams) {
   });
   if (search) params.set("search", search);
   if (type) params.set("type", type);
-  return fetchJson<PokemonListResponse>(`/pokemon?${params}`);
+  return apiRequest<PokemonListResponse>(`/pokemon?${params}`);
 }
 
 export function fetchPokemon(id: string) {
-  return fetchJson<PokemonDetail>(`/pokemon/${id}`);
+  return apiRequest<PokemonDetail>(`/pokemon/${id}`);
 }

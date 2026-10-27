@@ -9,6 +9,7 @@ import {
   draftFromTeam, draftToInput, emptyDraft, type DraftMember, type TeamDraft,
 } from "../lib/teamDraft";
 import { toFieldErrors, type FieldErrors } from "../lib/formErrors";
+import { DefenseTable } from "../components/DefenseTable";
 
 const MAX_MEMBERS = 6;
 
@@ -133,6 +134,7 @@ function TeamEditor({ teamId, initial }: EditorProps) {
 
         <PokemonPicker disabled={isFull} onPick={addMember} />
       </div>
+      <DefenseTable members={draft.members.map((m) => m.pokemon)} />
     </main>
   );
 }

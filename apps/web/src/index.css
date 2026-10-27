@@ -73,3 +73,17 @@ button.danger { background: #c62828; }
 .picker-results { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
 .picker-item { width: 100%; display: flex; align-items: center; gap: 8px; background: none; color: inherit; padding: 4px 8px; text-transform: capitalize; text-align: left; }
 .picker-item:hover:not(:disabled) { background: #eef0f6; }
+.analysis { margin-top: 32px; }
+.table-scroll { overflow-x: auto; }
+.defense-table { border-collapse: collapse; background: #fff; }
+.defense-table th, .defense-table td { padding: 4px 8px; text-align: center; border-bottom: 1px solid #eef0f6; }
+.defense-table thead th { font-size: 13px; color: #6b7088; }
+.defense-table tbody th { text-align: left; }
+.defense-table td { min-width: 40px; font-weight: 600; }
+.defense-table .immune { background: #2b2d42; color: #fff; }
+.defense-table .resist { background: #d7f0dc; color: #1b5e20; }
+.defense-table .weak { background: #fde0dc; color: #b71c1c; }
+.defense-table .very-weak { background: #f28b82; color: #5f0000; }
+.defense-table tr.threat th { box-shadow: inset 4px 0 0 #c62828; }
+.defense-table .count { color: #6b7088; font-weight: 400; }
+.threat-summary { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; font-weight: 600; color: #c62828; }

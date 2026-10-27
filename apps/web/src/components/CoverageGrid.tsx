@@ -1,9 +1,10 @@
 import {
-  SINGLE_TYPE_TARGETS, analyzeCoverage, coverageGaps, summarizeCoverage,
+  SINGLE_TYPE_TARGETS, analyzeCoverage, coverageGaps, summarizeCoverage, coverageDistribution,
   type Attacker, type CoverageTarget,
 } from "@pokedex/shared";
 import { TypeBadge } from "./TypeBadge";
 import { formatMove } from "../lib/format";
+import { CoverageChart } from "./CoverageChart";
 
 type Props = {
   team: Attacker[];
@@ -54,6 +55,8 @@ export function CoverageGrid({ team, combinations }: Props) {
           <strong>{percent(summary.neutralOrBetter, summary.total)}%</strong> for at least neutral damage.
         </p>
       )}
+
+      {summary.total > 0 && <CoverageChart distribution={coverageDistribution(allPokemon)} />}
 
       <h3>By single type</h3>
       <ul className="coverage-grid">

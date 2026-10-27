@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PokemonType } from "./pokemonTypes.ts";
 import {
-  SINGLE_TYPE_TARGETS, analyzeCoverage, coverageGaps, damageMultiplier, summarizeCoverage,
+  SINGLE_TYPE_TARGETS, analyzeCoverage, coverageGaps, coverageDistribution, damageMultiplier, summarizeCoverage,
   type Attacker, type CoverageTarget, type MoveInfo,
 } from "./offense.ts";
 
@@ -92,5 +92,26 @@ describe("summarizeCoverage", () => {
 
   it("is all zeros for no targets", () => {
     expect(summarizeCoverage([])).toEqual({ total: 0, superEffective: 0, neutralOrBetter: 0 });
+  });
+});
+
+describe("coverageDistribution", () => {
+  it("groups Pokémon by their best multiplier, weakest first", () => {
+    const targets: CoverageTarget[] = [
+      { types: ["grass"], count: 3 },
+      { types: ["water"], count: 1 },
+      { types: ["bug"], count: 2 },
+      { types: ["normal"], count: 4 },
+    ];
+    const team: Attacker[] = [{ types: ["fire"], moves: [flamethrower] }];
+    expect(coverageDistribution(analyzeCoverage(team, targets))).toEqual([
+      { multiplier: 0.75, count: 1 },
+      { multiplier: 1.5, count: 4 },
+      { multiplier: 3, count: 5 },
+    ]);
+  });
+
+  it("is empty for no targets", () => {
+    expect(coverageDistribution([])).toEqual([]);
   });
 });

@@ -100,3 +100,6 @@ button.danger { background: #c62828; }
 .hard-types { display: flex; gap: 4px; }
 .move-info { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b7088; text-transform: capitalize; }
 .move-info .type-badge { font-size: 11px; padding: 1px 8px; }
+.chart-box { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+.chart-box h3 { margin-top: 0; }
+.recharts-legend-item-text { text-transform: capitalize; }

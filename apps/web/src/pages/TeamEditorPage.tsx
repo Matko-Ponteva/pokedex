@@ -13,6 +13,8 @@ import { DefenseTable } from "../components/DefenseTable";
 import { CoverageGrid } from "../components/CoverageGrid";
 import { useMoves } from "../hooks/useMoves";
 import { useTypeCombinations } from "../hooks/useTypeCombinations";
+import { TeamStatsChart } from "../components/TeamStatsChart";
+import { usePokemonDetails } from "../hooks/usePokemonDetails";
 
 const MAX_MEMBERS = 6;
 
@@ -61,6 +63,12 @@ function TeamEditor({ teamId, initial }: EditorProps) {
       return info ? [info] : [];
     }),
   }));
+
+  const detailResults = usePokemonDetails(draft.members.map((m) => m.pokemon.id));
+  const statMembers = draft.members.flatMap((member, index) => {
+  const detail = detailResults[index]?.data;
+    return detail ? [{ key: member.key, detail }] : [];
+  });
 
   function addMember(pokemon: PokemonSummary) {
     setDraft((d) => {
@@ -149,6 +157,7 @@ function TeamEditor({ teamId, initial }: EditorProps) {
 
         <PokemonPicker disabled={isFull} onPick={addMember} />
       </div>
+        <TeamStatsChart members={statMembers} />
       <DefenseTable members={draft.members.map((m) => m.pokemon)} />
     {draft.members.length > 0 && <CoverageGrid team={attackers} combinations={combinations} />}
     </main>

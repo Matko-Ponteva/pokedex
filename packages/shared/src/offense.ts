@@ -88,3 +88,18 @@ export function summarizeCoverage(coverage: readonly CoverageEntry[]): CoverageS
   }
   return { total, superEffective, neutralOrBetter };
 }
+
+export type DistributionBucket = {
+  multiplier: number;
+  count: number;
+};
+
+export function coverageDistribution(coverage: readonly CoverageEntry[]): DistributionBucket[] {
+  const counts = new Map<number, number>();
+  for (const entry of coverage) {
+    counts.set(entry.best, (counts.get(entry.best) ?? 0) + entry.count);
+  }
+  return [...counts.entries()]
+    .map(([multiplier, count]) => ({ multiplier, count }))
+    .sort((a, b) => a.multiplier - b.multiplier);
+}

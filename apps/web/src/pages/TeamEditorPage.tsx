@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { teamInputSchema, type PokemonSummary } from "@pokedex/shared";
+import { teamInputSchema, type PokemonSummary, type Attacker } from "@pokedex/shared";
 import { TextField } from "../components/TextField";
 import { MemberCard } from "../components/MemberCard";
 import { PokemonPicker } from "../components/PokemonPicker";
@@ -10,6 +10,9 @@ import {
 } from "../lib/teamDraft";
 import { toFieldErrors, type FieldErrors } from "../lib/formErrors";
 import { DefenseTable } from "../components/DefenseTable";
+import { CoverageGrid } from "../components/CoverageGrid";
+import { useMoves } from "../hooks/useMoves";
+import { useTypeCombinations } from "../hooks/useTypeCombinations";
 
 const MAX_MEMBERS = 6;
 
@@ -47,6 +50,17 @@ function TeamEditor({ teamId, initial }: EditorProps) {
   const save = useSaveTeam();
   const navigate = useNavigate();
   const isFull = draft.members.length >= MAX_MEMBERS;
+  const moveNames = draft.members.flatMap((m) => m.moves);
+  const { data: moveInfo } = useMoves(moveNames);
+  const { data: combinations } = useTypeCombinations();
+
+  const attackers: Attacker[] = draft.members.map((member) => ({
+    types: member.pokemon.types,
+    moves: member.moves.flatMap((name) => {
+      const info = moveInfo?.get(name);
+      return info ? [info] : [];
+    }),
+  }));
 
   function addMember(pokemon: PokemonSummary) {
     setDraft((d) => {
@@ -121,6 +135,7 @@ function TeamEditor({ teamId, initial }: EditorProps) {
                 onMoveUp={() => moveMember(index, -1)}
                 onMoveDown={() => moveMember(index, 1)}
                 onRemove={() => removeMember(member.key)}
+                moveInfo={moveInfo}
               />
             ))}
           </ol>
@@ -135,6 +150,7 @@ function TeamEditor({ teamId, initial }: EditorProps) {
         <PokemonPicker disabled={isFull} onPick={addMember} />
       </div>
       <DefenseTable members={draft.members.map((m) => m.pokemon)} />
+    {draft.members.length > 0 && <CoverageGrid team={attackers} combinations={combinations} />}
     </main>
   );
 }

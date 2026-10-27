@@ -3,6 +3,7 @@ import {
   type PokemonDetail,
   type PokemonListResponse,
   type PokemonType,
+  type CoverageTarget
 } from "@pokedex/shared";
 
 import { apiRequest } from "./client";
@@ -26,4 +27,8 @@ export function fetchPokemonPage({ search, type, page }: ListParams) {
 
 export function fetchPokemon(id: string) {
   return apiRequest<PokemonDetail>(`/pokemon/${id}`);
+}
+
+export function fetchTypeCombinations() {
+  return apiRequest<CoverageTarget[]>("/pokemon/type-combinations");
 }

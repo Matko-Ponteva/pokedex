@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getPokemon, listPokemon } from "../services/pokemonService.ts";
+import { getPokemon, listPokemon, listTypeCombinations } from "../services/pokemonService.ts";
 import { DEFAULT_PAGE_SIZE, POKEMON_TYPES } from "@pokedex/shared";
 
 export const pokemonRouter = Router();
@@ -19,6 +19,10 @@ pokemonRouter.get("/", async (req, res) => {
 
 const detailParams = z.object({
   id: z.coerce.number().int().positive(),
+});
+
+pokemonRouter.get("/type-combinations", async (_req, res) => {
+  res.json(await listTypeCombinations());
 });
 
 pokemonRouter.get("/:id", async (req, res) => {

@@ -1,5 +1,8 @@
 import { HttpError } from "./errors.ts";
-import { POKEMON_TYPES, type EvolutionStage, type PokemonDetail, type PokemonSummary, type PokemonType } from "@pokedex/shared";
+import {
+  POKEMON_TYPES, type EvolutionStage, type MoveCategory, type MoveInfo,
+  type PokemonDetail, type PokemonSummary, type PokemonType,
+} from "@pokedex/shared";
 
 const BASE_URL = "https://pokeapi.co/api/v2";
 const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
@@ -26,10 +29,16 @@ type RawSpecies = {
 };
 type RawChainLink = { species: NamedResource; evolves_to: RawChainLink[] };
 type RawEvolutionChain = { chain: RawChainLink };
+type RawMove = {
+  name: string;
+  power: number | null;
+  type: NamedResource;
+  damage_class: NamedResource;
+};
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchJson<T>(url: string, notFoundMessage = "Pokémon not found"): Promise<T> {
   const res = await fetch(url);
-  if (res.status === 404) throw new HttpError(404, "Pokémon not found");
+  if (res.status === 404) throw new HttpError(404, notFoundMessage);
   if (!res.ok) throw new HttpError(502, `PokéAPI responded with ${res.status}`);
   return (await res.json()) as T;
 }
@@ -112,4 +121,14 @@ function toStages(root: RawChainLink): EvolutionStage[] {
     current = current.flatMap((link) => link.evolves_to);
   }
   return stages;
+}
+
+export async function fetchMove(name: string): Promise<MoveInfo> {
+  const move = await fetchJson<RawMove>(`${BASE_URL}/move/${name}`, `Move not found: ${name}`);
+  return {
+    name: move.name,
+    type: move.type.name as PokemonType,
+    category: move.damage_class.name as MoveCategory,
+    power: move.power,
+  };
 }

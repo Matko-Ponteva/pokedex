@@ -2,7 +2,7 @@ import { and, arrayContains, asc, count, eq, ilike, type SQL } from "drizzle-orm
 import { db } from "../db/client.ts";
 import { pokemon, pokemonDetails } from "../db/schema.ts";
 import { fetchPokemonDetail, fetchPokemonIndex } from "../lib/pokeapi.ts";
-import type { PokemonDetail, PokemonListResponse, PokemonType } from "@pokedex/shared";
+import type { PokemonDetail, PokemonListResponse, PokemonType, CoverageTarget } from "@pokedex/shared";
 
 export async function ensureIndex() {
   const [{ total }] = await db.select({ total: count() }).from(pokemon);
@@ -54,4 +54,21 @@ export async function getPokemon(id: number): Promise<PokemonDetail> {
       set: { data: detail, fetchedAt: new Date() },
     });
   return detail;
+}
+
+export async function listTypeCombinations(): Promise<CoverageTarget[]> {
+  await ensureIndex();
+  const rows = await db.select({ types: pokemon.types }).from(pokemon);
+
+  const combinations = new Map<string, CoverageTarget>();
+  for (const { types } of rows) {
+    if (types.length === 0) continue;
+    const sorted = [...types].sort();
+    const key = sorted.join("/");
+    const existing = combinations.get(key);
+    if (existing) existing.count += 1;
+    else combinations.set(key, { types: sorted, count: 1 });
+  }
+
+  return [...combinations.values()].sort((a, b) => b.count - a.count);
 }

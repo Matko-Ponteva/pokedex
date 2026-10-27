@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
-import type { PokemonDetail, PokemonType } from "@pokedex/shared";
+import type { MoveCategory, PokemonDetail, PokemonType } from "@pokedex/shared";
 
 export const pokemon = pgTable("pokemon", {
   id: integer("id").primaryKey(),
@@ -58,3 +58,10 @@ export const teamMembers = pgTable(
     check("team_members_slot_range", sql`${table.slot} BETWEEN 1 AND 6`),
   ]
 );
+
+export const moves = pgTable("moves", {
+  name: text("name").primaryKey(),
+  type: text("type").$type<PokemonType>().notNull(),
+  category: text("category").$type<MoveCategory>().notNull(),
+  power: integer("power"),
+});

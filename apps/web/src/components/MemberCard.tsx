@@ -1,21 +1,17 @@
 import type { DraftMember } from "../lib/teamDraft";
 import { usePokemon } from "../hooks/usePokemon";
 import { TypeBadge } from "./TypeBadge";
+import { formatMove } from "../lib/format";
+import type { MoveInfo } from "@pokedex/shared";
 
 const MOVE_SLOTS = [0, 1, 2, 3];
-
-function formatMove(move: string): string {
-  return move
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 type Props = {
   member: DraftMember;
   slot: number;
   isFirst: boolean;
   isLast: boolean;
+  moveInfo?: Map<string, MoveInfo>;
   onMovesChange: (moves: string[]) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -23,7 +19,7 @@ type Props = {
 };
 
 export function MemberCard({
-  member, slot, isFirst, isLast, onMovesChange, onMoveUp, onMoveDown, onRemove,
+  member, slot, isFirst, isLast, moveInfo, onMovesChange, onMoveUp, onMoveDown, onRemove,
 }: Props) {
   const { data: detail, isPending, isError } = usePokemon(String(member.pokemon.id));
   const { pokemon, moves } = member;
@@ -49,23 +45,33 @@ export function MemberCard({
       </div>
 
       <div className="move-grid">
-        {MOVE_SLOTS.map((i) => (
-          <label key={i} className="move-select">
-            <span>Move {i + 1}</span>
-            <select
-              value={moves[i] ?? ""}
-              disabled={isPending || isError || i > moves.length}
-              onChange={(e) => setMove(i, e.target.value)}
-            >
-              <option value="">None</option>
-              {detail?.moves.map((move) => (
-                <option key={move} value={move} disabled={moves.includes(move) && moves[i] !== move}>
-                  {formatMove(move)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
+        {MOVE_SLOTS.map((i) => {
+          const info = moves[i] ? moveInfo?.get(moves[i]) : undefined;
+          return (
+            <label key={i} className="move-select">
+              <span>Move {i + 1}</span>
+              <select
+                value={moves[i] ?? ""}
+                disabled={isPending || isError || i > moves.length}
+                onChange={(e) => setMove(i, e.target.value)}
+              >
+                <option value="">None</option>
+                {detail?.moves.map((move) => (
+                  <option key={move} value={move} disabled={moves.includes(move) && moves[i] !== move}>
+                    {formatMove(move)}
+                  </option>
+                ))}
+              </select>
+              {info && (
+                <span className="move-info">
+                  <TypeBadge type={info.type} />
+                  {info.category}
+                  {info.power !== null && `, power ${info.power}`}
+                </span>
+              )}
+            </label>
+          );
+        })}
       </div>
       {isError && <p className="field-error">Couldn't load this Pokémon's moves.</p>}
 

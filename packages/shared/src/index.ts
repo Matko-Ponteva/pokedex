@@ -4,6 +4,7 @@ import type { PokemonType } from "./pokemonTypes.ts";
 export * from "./pokemonTypes.ts";
 export * from "./typeChart.ts";
 export * from "./defense.ts";
+export * from "./offense.ts";
 
 export const DEFAULT_PAGE_SIZE = 24;
 
@@ -77,7 +78,7 @@ export const logInSchema = z.object({
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type LogInInput = z.infer<typeof logInSchema>;
 
-const moveName = z
+export const moveNameSchema = z
   .string()
   .trim()
   .toLowerCase()
@@ -87,7 +88,7 @@ const moveName = z
 export const teamMemberInputSchema = z.object({
   pokemonId: z.number().int().positive(),
   moves: z
-    .array(moveName)
+    .array(moveNameSchema)
     .max(4, "A Pokémon can know at most 4 moves")
     .refine((moves) => new Set(moves).size === moves.length, "Each move can only be chosen once"),
 });

@@ -1,10 +1,11 @@
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import type {
+  LikeState,
   PublicTeam, PublicTeamListResponse, PublicTeamSort, Team, TeamInput,
 } from "@pokedex/shared";
 import { encodeCursor, type TeamCursor } from "../lib/cursor.ts";
 import { db } from "../db/client.ts";
-import { pokemon, teamMembers, teams, users } from "../db/schema.ts";
+import { likes, pokemon, teamMembers, teams, users } from "../db/schema.ts";
 import { HttpError } from "../lib/errors.ts";
 import { ensureIndex, getPokemon } from "./pokemonService.ts";
 
@@ -136,7 +137,33 @@ export async function deleteTeam(userId: number, teamId: number) {
   if (deleted.length === 0) throw new HttpError(404, "Team not found");
 }
 
-export async function getPublicTeam(shareId: string): Promise<PublicTeam> {
+function toPublicTeam(
+  team: Team,
+  ownerName: string,
+  likeCount: number,
+  likedByMe: boolean
+): PublicTeam {
+  return {
+    shareId: team.shareId,
+    name: team.name,
+    ownerName,
+    members: team.members,
+    updatedAt: team.updatedAt,
+    likeCount,
+    likedByMe,
+  };
+}
+
+async function likedTeamIds(viewerId: number | undefined, teamIds: number[]): Promise<Set<number>> {
+  if (viewerId === undefined || teamIds.length === 0) return new Set();
+  const rows = await db
+    .select({ teamId: likes.teamId })
+    .from(likes)
+    .where(and(eq(likes.userId, viewerId), inArray(likes.teamId, teamIds)));
+  return new Set(rows.map((row) => row.teamId));
+}
+
+export async function getPublicTeam(shareId: string, viewerId?: number): Promise<PublicTeam> {
   const [row] = await db
     .select({ team: teams, ownerName: users.displayName })
     .from(teams)
@@ -145,17 +172,8 @@ export async function getPublicTeam(shareId: string): Promise<PublicTeam> {
   if (!row) throw new HttpError(404, "Team not found");
 
   const [team] = await withMembers([row.team]);
-    return toPublicTeam(team, row.ownerName);
-}
-
-function toPublicTeam(team: Team, ownerName: string): PublicTeam {
-  return {
-    shareId: team.shareId,
-    name: team.name,
-    ownerName,
-    members: team.members,
-    updatedAt: team.updatedAt,
-  };
+  const liked = await likedTeamIds(viewerId, [row.team.id]);
+  return toPublicTeam(team, row.ownerName, row.team.likeCount, liked.has(row.team.id));
 }
 
 const PUBLIC_PAGE_SIZE = 12;
@@ -164,14 +182,37 @@ function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
+function cursorCondition(sort: PublicTeamSort, cursor: TeamCursor): SQL {
+  switch (sort) {
+    case "name":
+      return sql`(${teams.name}, ${teams.id}) > (${cursor.name}, ${cursor.id})`;
+    case "popular":
+      return sql`(${teams.likeCount}, ${teams.id}) < (${cursor.likeCount}, ${cursor.id})`;
+    case "newest":
+      return lt(teams.id, cursor.id);
+  }
+}
+
+function sortOrder(sort: PublicTeamSort) {
+  switch (sort) {
+    case "name":
+      return [asc(teams.name), asc(teams.id)];
+    case "popular":
+      return [desc(teams.likeCount), desc(teams.id)];
+    case "newest":
+      return [desc(teams.id)];
+  }
+}
+
 type ListPublicOptions = {
   search?: string;
   sort: PublicTeamSort;
   cursor?: TeamCursor;
+  viewerId?: number;
 };
 
 export async function listPublicTeams({
-  search, sort, cursor,
+  search, sort, cursor, viewerId,
 }: ListPublicOptions): Promise<PublicTeamListResponse> {
   if (cursor && cursor.sort !== sort) throw new HttpError(400, "Invalid cursor");
 
@@ -181,31 +222,76 @@ export async function listPublicTeams({
     const match = or(ilike(teams.name, pattern), ilike(users.displayName, pattern));
     if (match) filters.push(match);
   }
-  if (cursor) {
-    filters.push(
-      sort === "name"
-        ? sql`(${teams.name}, ${teams.id}) > (${cursor.name}, ${cursor.id})`
-        : lt(teams.id, cursor.id)
-    );
-  }
+  if (cursor) filters.push(cursorCondition(sort, cursor));
 
   const rows = await db
     .select({ team: teams, ownerName: users.displayName })
     .from(teams)
     .innerJoin(users, eq(teams.userId, users.id))
     .where(and(...filters))
-    .orderBy(...(sort === "name" ? [asc(teams.name), asc(teams.id)] : [desc(teams.id)]))
+    .orderBy(...sortOrder(sort))
     .limit(PUBLIC_PAGE_SIZE + 1);
 
   const page = rows.slice(0, PUBLIC_PAGE_SIZE);
   const full = await withMembers(page.map((row) => row.team));
-  const items = full.map((team, index) => toPublicTeam(team, page[index].ownerName));
+  const liked = await likedTeamIds(viewerId, page.map((row) => row.team.id));
+  const items = full.map((team, index) =>
+    toPublicTeam(team, page[index].ownerName, page[index].team.likeCount, liked.has(team.id))
+  );
 
   const last = page.at(-1);
   const nextCursor =
     rows.length > PUBLIC_PAGE_SIZE && last
-      ? encodeCursor({ sort, id: last.team.id, name: last.team.name })
+      ? encodeCursor({
+          sort,
+          id: last.team.id,
+          name: last.team.name,
+          likeCount: last.team.likeCount,
+        })
       : null;
 
   return { items, nextCursor };
+}
+
+async function findPublicTeamId(shareId: string): Promise<number> {
+  const [team] = await db
+    .select({ id: teams.id })
+    .from(teams)
+    .where(and(eq(teams.shareId, shareId), eq(teams.isPublic, true)));
+  if (!team) throw new HttpError(404, "Team not found");
+  return team.id;
+}
+
+export async function setLike(userId: number, shareId: string, liked: boolean): Promise<LikeState> {
+  const teamId = await findPublicTeamId(shareId);
+
+  return db.transaction(async (tx) => {
+    if (liked) {
+      const inserted = await tx
+        .insert(likes)
+        .values({ userId, teamId })
+        .onConflictDoNothing()
+        .returning({ teamId: likes.teamId });
+      if (inserted.length > 0) {
+        await tx
+          .update(teams)
+          .set({ likeCount: sql`${teams.likeCount} + 1` })
+          .where(eq(teams.id, teamId));
+      }
+    } else {
+      const deleted = await tx
+        .delete(likes)
+        .where(and(eq(likes.userId, userId), eq(likes.teamId, teamId)))
+        .returning({ teamId: likes.teamId });
+      if (deleted.length > 0) {
+        await tx
+          .update(teams)
+          .set({ likeCount: sql`${teams.likeCount} - 1` })
+          .where(eq(teams.id, teamId));
+      }
+    }
+
+    const [team] = await tx.select({ likeCount: teams.likeCount }).from(teams).where(eq(teams.id, teamId));
+    return { likeCount: team.likeCount, likedByMe: liked };
+  });
 }

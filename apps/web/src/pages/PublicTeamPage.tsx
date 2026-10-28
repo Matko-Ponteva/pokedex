@@ -3,6 +3,7 @@ import { TypeBadge } from "../components/TypeBadge";
 import { TeamAnalysis } from "../components/TeamAnalysis";
 import { usePublicTeam } from "../hooks/useTeams";
 import { formatMove, formatPokemonName } from "../lib/format";
+import { LikeButton } from "../components/LikeButton";
 
 export function PublicTeamPage() {
   const { shareId = "" } = useParams();
@@ -22,6 +23,7 @@ export function PublicTeamPage() {
     <main>
       <h1>{team.name}</h1>
       <p className="muted">A team by {team.ownerName}</p>
+        <LikeButton team={team} />
 
       <ol className="member-list public-members">
         {team.members.map((member) => (

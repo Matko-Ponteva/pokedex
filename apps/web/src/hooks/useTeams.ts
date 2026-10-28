@@ -1,6 +1,6 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import type { PublicTeamSort, Team, TeamInput } from "@pokedex/shared";
-import { createTeam, deleteTeam, fetchTeam, fetchTeams, updateTeam, fetchPublicTeam, fetchPublicTeams } from "../api/teams";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, keepPreviousData, type InfiniteData, type QueryClient } from "@tanstack/react-query";
+import type { PublicTeamSort, Team, TeamInput, PublicTeam, PublicTeamListResponse } from "@pokedex/shared";
+import { createTeam, deleteTeam, fetchTeam, fetchTeams, updateTeam, fetchPublicTeam, fetchPublicTeams, likeTeam } from "../api/teams";
 
 const teamsKey = ["teams"] as const;
 const teamKey = (id: number) => ["teams", id] as const;
@@ -71,5 +71,54 @@ export function usePublicTeams(search: string, sort: PublicTeamSort) {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
+  });
+}
+
+const publicTeamsKey = ["public-teams"] as const;
+
+function updatePublicTeam(
+  queryClient: QueryClient,
+  shareId: string,
+  change: (team: PublicTeam) => PublicTeam
+) {
+  queryClient.setQueryData<PublicTeam>([...publicTeamsKey, shareId], (team) =>
+    team ? change(team) : team
+  );
+  queryClient.setQueriesData<InfiniteData<PublicTeamListResponse>>(
+    { queryKey: [...publicTeamsKey, "list"] },
+    (data) =>
+      data && {
+        ...data,
+        pages: data.pages.map((page) => ({
+          ...page,
+          items: page.items.map((team) => (team.shareId === shareId ? change(team) : team)),
+        })),
+      }
+  );
+}
+
+export function useLikeTeam() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shareId, liked }: { shareId: string; liked: boolean }) =>
+      likeTeam(shareId, liked),
+    onMutate: async ({ shareId, liked }) => {
+      await queryClient.cancelQueries({ queryKey: publicTeamsKey });
+      const snapshot = queryClient.getQueriesData({ queryKey: publicTeamsKey });
+      updatePublicTeam(queryClient, shareId, (team) => ({
+        ...team,
+        likedByMe: liked,
+        likeCount: team.likeCount + (liked ? 1 : -1),
+      }));
+      return { snapshot };
+    },
+    onError: (_error, _variables, context) => {
+      for (const [key, data] of context?.snapshot ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSuccess: (state, { shareId }) => {
+      updatePublicTeam(queryClient, shareId, (team) => ({ ...team, ...state }));
+    },
   });
 }

@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import type { PublicTeam } from "@pokedex/shared";
+import { LikeButton } from "./LikeButton";
 
 export function PublicTeamCard({ team }: { team: PublicTeam }) {
   return (
@@ -20,6 +21,9 @@ export function PublicTeamCard({ team }: { team: PublicTeam }) {
           ))}
         </div>
       </Link>
+      <div className="team-actions">
+        <LikeButton team={team} />
+      </div>
     </li>
   );
 }

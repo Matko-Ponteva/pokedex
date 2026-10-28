@@ -1,4 +1,4 @@
-import type { Team, TeamInput, PublicTeam, PublicTeamListResponse, PublicTeamSort } from "@pokedex/shared";
+import type { Team, TeamInput, PublicTeam, PublicTeamListResponse, PublicTeamSort, LikeState } from "@pokedex/shared";
 import { apiRequest } from "./client";
 
 export function fetchTeams() {
@@ -36,4 +36,10 @@ export function fetchPublicTeams({ search, sort, cursor }: PublicTeamParams) {
   if (search) params.set("search", search);
   if (cursor) params.set("cursor", cursor);
   return apiRequest<PublicTeamListResponse>(`/public/teams?${params}`);
+}
+
+export function likeTeam(shareId: string, liked: boolean) {
+  return apiRequest<LikeState>(`/public/teams/${shareId}/like`, {
+    method: liked ? "PUT" : "DELETE",
+  });
 }

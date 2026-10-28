@@ -6,6 +6,7 @@ const cursorSchema = z.object({
   sort: z.enum(PUBLIC_TEAM_SORTS),
   id: z.number().int().positive(),
   name: z.string(),
+  likeCount: z.number().int().min(0),
 });
 
 export type TeamCursor = z.infer<typeof cursorSchema>;

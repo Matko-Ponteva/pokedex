@@ -127,9 +127,11 @@ export type PublicTeam = {
   ownerName: string;
   members: TeamMember[];
   updatedAt: string;
+  likeCount: number;
+  likedByMe: boolean;
 };
 
-export const PUBLIC_TEAM_SORTS = ["newest", "name"] as const;
+export const PUBLIC_TEAM_SORTS = ["newest", "name", "popular"] as const;
 
 export type PublicTeamSort = (typeof PUBLIC_TEAM_SORTS)[number];
 
@@ -140,4 +142,9 @@ export function isPublicTeamSort(value: unknown): value is PublicTeamSort {
 export type PublicTeamListResponse = {
   items: PublicTeam[];
   nextCursor: string | null;
+};
+
+export type LikeState = {
+  likeCount: number;
+  likedByMe: boolean;
 };

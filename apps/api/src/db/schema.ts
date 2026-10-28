@@ -39,6 +39,7 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   shareId: uuid("share_id").notNull().unique().defaultRandom(),
   isPublic: boolean("is_public").notNull().default(false),
+  likeCount: integer("like_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -67,3 +68,17 @@ export const moves = pgTable("moves", {
   category: text("category").$type<MoveCategory>().notNull(),
   power: integer("power"),
 });
+
+export const likes = pgTable(
+  "likes",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.teamId] })]
+);

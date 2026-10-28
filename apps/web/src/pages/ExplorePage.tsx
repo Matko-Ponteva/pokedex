@@ -8,6 +8,7 @@ import { usePublicTeams } from "../hooks/useTeams";
 const SORT_LABELS: Record<PublicTeamSort, string> = {
   newest: "Newest",
   name: "Name (A to Z)",
+  popular: "Most liked",
 };
 
 export function ExplorePage() {

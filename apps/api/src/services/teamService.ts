@@ -1,9 +1,13 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
-import type { Team, TeamInput, PublicTeam } from "@pokedex/shared";
+import { and, asc, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import type {
+  PublicTeam, PublicTeamListResponse, PublicTeamSort, Team, TeamInput,
+} from "@pokedex/shared";
+import { encodeCursor, type TeamCursor } from "../lib/cursor.ts";
 import { db } from "../db/client.ts";
 import { pokemon, teamMembers, teams, users } from "../db/schema.ts";
 import { HttpError } from "../lib/errors.ts";
 import { ensureIndex, getPokemon } from "./pokemonService.ts";
+
 
 type TeamRow = typeof teams.$inferSelect;
 
@@ -141,11 +145,67 @@ export async function getPublicTeam(shareId: string): Promise<PublicTeam> {
   if (!row) throw new HttpError(404, "Team not found");
 
   const [team] = await withMembers([row.team]);
+    return toPublicTeam(team, row.ownerName);
+}
+
+function toPublicTeam(team: Team, ownerName: string): PublicTeam {
   return {
     shareId: team.shareId,
     name: team.name,
-    ownerName: row.ownerName,
+    ownerName,
     members: team.members,
     updatedAt: team.updatedAt,
   };
+}
+
+const PUBLIC_PAGE_SIZE = 12;
+
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+type ListPublicOptions = {
+  search?: string;
+  sort: PublicTeamSort;
+  cursor?: TeamCursor;
+};
+
+export async function listPublicTeams({
+  search, sort, cursor,
+}: ListPublicOptions): Promise<PublicTeamListResponse> {
+  if (cursor && cursor.sort !== sort) throw new HttpError(400, "Invalid cursor");
+
+  const filters: SQL[] = [eq(teams.isPublic, true)];
+  if (search) {
+    const pattern = `%${escapeLike(search)}%`;
+    const match = or(ilike(teams.name, pattern), ilike(users.displayName, pattern));
+    if (match) filters.push(match);
+  }
+  if (cursor) {
+    filters.push(
+      sort === "name"
+        ? sql`(${teams.name}, ${teams.id}) > (${cursor.name}, ${cursor.id})`
+        : lt(teams.id, cursor.id)
+    );
+  }
+
+  const rows = await db
+    .select({ team: teams, ownerName: users.displayName })
+    .from(teams)
+    .innerJoin(users, eq(teams.userId, users.id))
+    .where(and(...filters))
+    .orderBy(...(sort === "name" ? [asc(teams.name), asc(teams.id)] : [desc(teams.id)]))
+    .limit(PUBLIC_PAGE_SIZE + 1);
+
+  const page = rows.slice(0, PUBLIC_PAGE_SIZE);
+  const full = await withMembers(page.map((row) => row.team));
+  const items = full.map((team, index) => toPublicTeam(team, page[index].ownerName));
+
+  const last = page.at(-1);
+  const nextCursor =
+    rows.length > PUBLIC_PAGE_SIZE && last
+      ? encodeCursor({ sort, id: last.team.id, name: last.team.name })
+      : null;
+
+  return { items, nextCursor };
 }

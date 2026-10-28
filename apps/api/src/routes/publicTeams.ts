@@ -1,11 +1,30 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getPublicTeam } from "../services/teamService.ts";
+import { PUBLIC_TEAM_SORTS } from "@pokedex/shared";
+import { getPublicTeam, listPublicTeams } from "../services/teamService.ts";
+import { decodeCursor } from "../lib/cursor.ts";
 
 export const publicTeamsRouter = Router();
 
 const shareParams = z.object({
   shareId: z.uuid(),
+});
+
+const listQuery = z.object({
+  search: z.string().trim().max(40).optional(),
+  sort: z.enum(PUBLIC_TEAM_SORTS).default("newest"),
+  cursor: z.string().max(500).optional(),
+});
+
+publicTeamsRouter.get("/", async (req, res) => {
+  const { search, sort, cursor } = listQuery.parse(req.query);
+  res.json(
+    await listPublicTeams({
+      search: search || undefined,
+      sort,
+      cursor: cursor ? decodeCursor(cursor) : undefined,
+    })
+  );
 });
 
 publicTeamsRouter.get("/:shareId", async (req, res) => {

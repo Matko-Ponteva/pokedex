@@ -10,6 +10,7 @@ export function AppLayout() {
       <header className="app-header">
         <nav className="app-nav">
           <NavLink to="/" end>Pokédex</NavLink>
+          <NavLink to="/explore">Explore</NavLink>
           <NavLink to="/teams">My teams</NavLink>
         </nav>
         <div className="app-user">

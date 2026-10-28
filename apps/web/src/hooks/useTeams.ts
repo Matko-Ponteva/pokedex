@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Team, TeamInput } from "@pokedex/shared";
-import { createTeam, deleteTeam, fetchTeam, fetchTeams, updateTeam, fetchPublicTeam } from "../api/teams";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import type { PublicTeamSort, Team, TeamInput } from "@pokedex/shared";
+import { createTeam, deleteTeam, fetchTeam, fetchTeams, updateTeam, fetchPublicTeam, fetchPublicTeams } from "../api/teams";
 
 const teamsKey = ["teams"] as const;
 const teamKey = (id: number) => ["teams", id] as const;
@@ -60,5 +60,16 @@ export function usePublicTeam(shareId: string) {
   return useQuery({
     queryKey: ["public-teams", shareId],
     queryFn: () => fetchPublicTeam(shareId),
+  });
+}
+
+export function usePublicTeams(search: string, sort: PublicTeamSort) {
+  return useInfiniteQuery({
+    queryKey: ["public-teams", "list", { search, sort }],
+    queryFn: ({ pageParam }) => fetchPublicTeams({ search, sort, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
 }

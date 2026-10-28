@@ -128,3 +128,16 @@ export type PublicTeam = {
   members: TeamMember[];
   updatedAt: string;
 };
+
+export const PUBLIC_TEAM_SORTS = ["newest", "name"] as const;
+
+export type PublicTeamSort = (typeof PUBLIC_TEAM_SORTS)[number];
+
+export function isPublicTeamSort(value: unknown): value is PublicTeamSort {
+  return typeof value === "string" && (PUBLIC_TEAM_SORTS as readonly string[]).includes(value);
+}
+
+export type PublicTeamListResponse = {
+  items: PublicTeam[];
+  nextCursor: string | null;
+};

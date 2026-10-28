@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, integer, jsonb, pgTable, primaryKey, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { check, integer, jsonb, pgTable, primaryKey, text, timestamp, boolean, uuid, index } from "drizzle-orm/pg-core";
 import type { MoveCategory, PokemonDetail, PokemonType } from "@pokedex/shared";
 
 export const pokemon = pgTable("pokemon", {
@@ -23,26 +23,42 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const sessions = pgTable("sessions", {
-  id: text("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("sessions_user_id_idx").on(table.userId)]
+);
 
-export const teams = pgTable("teams", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  shareId: uuid("share_id").notNull().unique().defaultRandom(),
-  isPublic: boolean("is_public").notNull().default(false),
-  likeCount: integer("like_count").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const teams = pgTable(
+  "teams",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    shareId: uuid("share_id").notNull().unique().defaultRandom(),
+    isPublic: boolean("is_public").notNull().default(false),
+    likeCount: integer("like_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("teams_user_id_idx").on(table.userId),
+    index("teams_public_popular_idx")
+      .on(table.likeCount.desc(), table.id.desc())
+      .where(sql`${table.isPublic} = true`),
+    index("teams_public_name_idx")
+      .on(table.name, table.id)
+      .where(sql`${table.isPublic} = true`),
+  ]
+);
 
 export const teamMembers = pgTable(
   "team_members",
@@ -80,5 +96,8 @@ export const likes = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.teamId] })]
+  (table) => [
+    primaryKey({ columns: [table.userId, table.teamId] }),
+    index("likes_team_id_idx").on(table.teamId),
+  ]
 );

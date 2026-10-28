@@ -43,6 +43,13 @@
       "when": 1793186447027,
       "tag": "0005_freezing_krista_starr",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793193624411,
+      "tag": "0006_absurd_paladin",
+      "breakpoints": true
     }
   ]
 }

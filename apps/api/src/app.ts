@@ -8,6 +8,7 @@ import { loadSession } from "./middleware/auth.ts";
 import { errorHandler } from "./middleware/errorHandler.ts";
 import { pool } from "./db/client.ts";
 import { movesRouter } from "./routes/moves.ts";
+import { publicTeamsRouter } from "./routes/publicTeams.ts";
 
 export function createApp() {
   const app = express();
@@ -25,6 +26,7 @@ export function createApp() {
   app.use("/api/pokemon", pokemonRouter);
   app.use("/api/teams", teamsRouter);
   app.use("/api/moves", movesRouter);
+  app.use("/api/public/teams", publicTeamsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });

@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { useCurrentUser } from "../hooks/useAuth";
 import { useDeleteTeam, useTeams } from "../hooks/useTeams";
+import { CopyLinkButton } from "../components/CopyLinkButton";
 
 export function TeamsPage() {
   const { data: user } = useCurrentUser();
@@ -43,6 +44,8 @@ export function TeamsPage() {
                 ))}
               </div>
               <div className="team-actions">
+                <span className="visibility">{team.isPublic ? "Public" : "Private"}</span>
+                {team.isPublic && <CopyLinkButton shareId={team.shareId} />}
                 <Link to={`/teams/${team.id}`}>Edit</Link>
                 <button
                   type="button"

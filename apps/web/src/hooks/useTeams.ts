@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Team, TeamInput } from "@pokedex/shared";
-import { createTeam, deleteTeam, fetchTeam, fetchTeams, updateTeam } from "../api/teams";
+import { createTeam, deleteTeam, fetchTeam, fetchTeams, updateTeam, fetchPublicTeam } from "../api/teams";
 
 const teamsKey = ["teams"] as const;
 const teamKey = (id: number) => ["teams", id] as const;
@@ -53,5 +53,12 @@ export function useDeleteTeam() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: teamsKey, exact: true });
     },
+  });
+}
+
+export function usePublicTeam(shareId: string) {
+  return useQuery({
+    queryKey: ["public-teams", shareId],
+    queryFn: () => fetchPublicTeam(shareId),
   });
 }

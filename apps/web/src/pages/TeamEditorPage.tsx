@@ -1,20 +1,16 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { teamInputSchema, type PokemonSummary, type Attacker } from "@pokedex/shared";
+import { teamInputSchema, type PokemonSummary } from "@pokedex/shared";
 import { TextField } from "../components/TextField";
 import { MemberCard } from "../components/MemberCard";
 import { PokemonPicker } from "../components/PokemonPicker";
+import { TeamAnalysis } from "../components/TeamAnalysis";
 import { useSaveTeam, useTeam } from "../hooks/useTeams";
+import { useMoves } from "../hooks/useMoves";
 import {
   draftFromTeam, draftToInput, emptyDraft, type DraftMember, type TeamDraft,
 } from "../lib/teamDraft";
 import { toFieldErrors, type FieldErrors } from "../lib/formErrors";
-import { DefenseTable } from "../components/DefenseTable";
-import { CoverageGrid } from "../components/CoverageGrid";
-import { useMoves } from "../hooks/useMoves";
-import { useTypeCombinations } from "../hooks/useTypeCombinations";
-import { TeamStatsChart } from "../components/TeamStatsChart";
-import { usePokemonDetails } from "../hooks/usePokemonDetails";
 
 const MAX_MEMBERS = 6;
 
@@ -54,21 +50,6 @@ function TeamEditor({ teamId, initial }: EditorProps) {
   const isFull = draft.members.length >= MAX_MEMBERS;
   const moveNames = draft.members.flatMap((m) => m.moves);
   const { data: moveInfo } = useMoves(moveNames);
-  const { data: combinations } = useTypeCombinations();
-
-  const attackers: Attacker[] = draft.members.map((member) => ({
-    types: member.pokemon.types,
-    moves: member.moves.flatMap((name) => {
-      const info = moveInfo?.get(name);
-      return info ? [info] : [];
-    }),
-  }));
-
-  const detailResults = usePokemonDetails(draft.members.map((m) => m.pokemon.id));
-  const statMembers = draft.members.flatMap((member, index) => {
-  const detail = detailResults[index]?.data;
-    return detail ? [{ key: member.key, detail }] : [];
-  });
 
   function addMember(pokemon: PokemonSummary) {
     setDraft((d) => {
@@ -128,6 +109,14 @@ function TeamEditor({ teamId, initial }: EditorProps) {
             error={errors.name}
             onChange={(name) => setDraft((d) => ({ ...d, name }))}
           />
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={draft.isPublic}
+              onChange={(e) => setDraft((d) => ({ ...d, isPublic: e.target.checked }))}
+            />
+            <span>Public: anyone with the link can view this team</span>
+          </label>
 
           <h2>Members ({draft.members.length}/{MAX_MEMBERS})</h2>
           {draft.members.length === 0 && <p className="muted">Add Pokémon with the search on the right.</p>}
@@ -139,11 +128,11 @@ function TeamEditor({ teamId, initial }: EditorProps) {
                 slot={index + 1}
                 isFirst={index === 0}
                 isLast={index === draft.members.length - 1}
+                moveInfo={moveInfo}
                 onMovesChange={(moves) => changeMoves(member.key, moves)}
                 onMoveUp={() => moveMember(index, -1)}
                 onMoveDown={() => moveMember(index, 1)}
                 onRemove={() => removeMember(member.key)}
-                moveInfo={moveInfo}
               />
             ))}
           </ol>
@@ -157,9 +146,8 @@ function TeamEditor({ teamId, initial }: EditorProps) {
 
         <PokemonPicker disabled={isFull} onPick={addMember} />
       </div>
-        <TeamStatsChart members={statMembers} />
-      <DefenseTable members={draft.members.map((m) => m.pokemon)} />
-    {draft.members.length > 0 && <CoverageGrid team={attackers} combinations={combinations} />}
+
+      <TeamAnalysis members={draft.members} />
     </main>
   );
 }

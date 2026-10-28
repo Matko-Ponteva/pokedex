@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { check, integer, jsonb, pgTable, primaryKey, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 import type { MoveCategory, PokemonDetail, PokemonType } from "@pokedex/shared";
 
 export const pokemon = pgTable("pokemon", {
@@ -37,6 +37,8 @@ export const teams = pgTable("teams", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  shareId: uuid("share_id").notNull().unique().defaultRandom(),
+  isPublic: boolean("is_public").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -29,6 +29,13 @@
       "when": 1793099004735,
       "tag": "0003_fast_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793173089052,
+      "tag": "0004_ancient_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

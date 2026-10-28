@@ -100,6 +100,7 @@ export const teamInputSchema = z.object({
     .min(1, "Give your team a name")
     .max(40, "Team names can be at most 40 characters"),
   members: z.array(teamMemberInputSchema).max(6, "A team can have at most 6 Pokémon"),
+  isPublic: z.boolean().default(false),
 });
 
 export type TeamInput = z.infer<typeof teamInputSchema>;
@@ -112,8 +113,18 @@ export type TeamMember = {
 
 export type Team = {
   id: number;
+  shareId: string;
+  isPublic: boolean;
   name: string;
   members: TeamMember[];
   createdAt: string;
+  updatedAt: string;
+};
+
+export type PublicTeam = {
+  shareId: string;
+  name: string;
+  ownerName: string;
+  members: TeamMember[];
   updatedAt: string;
 };

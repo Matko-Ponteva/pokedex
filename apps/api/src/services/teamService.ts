@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import type { Team, TeamInput } from "@pokedex/shared";
+import type { Team, TeamInput, PublicTeam } from "@pokedex/shared";
 import { db } from "../db/client.ts";
-import { pokemon, teamMembers, teams } from "../db/schema.ts";
+import { pokemon, teamMembers, teams, users } from "../db/schema.ts";
 import { HttpError } from "../lib/errors.ts";
 import { ensureIndex, getPokemon } from "./pokemonService.ts";
 
@@ -25,6 +25,8 @@ async function withMembers(teamRows: TeamRow[]): Promise<Team[]> {
   return teamRows.map((team) => ({
     id: team.id,
     name: team.name,
+    shareId: team.shareId,
+    isPublic: team.isPublic,
     createdAt: team.createdAt.toISOString(),
     updatedAt: team.updatedAt.toISOString(),
     members: memberRows
@@ -93,7 +95,7 @@ export async function createTeam(userId: number, input: TeamInput): Promise<Team
   const teamId = await db.transaction(async (tx) => {
     const [team] = await tx
       .insert(teams)
-      .values({ userId, name: input.name })
+      .values({ userId, name: input.name, isPublic: input.isPublic })
       .returning({ id: teams.id });
     if (input.members.length > 0) {
       await tx.insert(teamMembers).values(memberRows(team.id, input));
@@ -111,7 +113,7 @@ export async function updateTeam(userId: number, teamId: number, input: TeamInpu
   await db.transaction(async (tx) => {
     await tx
       .update(teams)
-      .set({ name: input.name, updatedAt: new Date() })
+      .set({ name: input.name, isPublic: input.isPublic, updatedAt: new Date() })
       .where(eq(teams.id, teamId));
     await tx.delete(teamMembers).where(eq(teamMembers.teamId, teamId));
     if (input.members.length > 0) {
@@ -128,4 +130,22 @@ export async function deleteTeam(userId: number, teamId: number) {
     .where(and(eq(teams.id, teamId), eq(teams.userId, userId)))
     .returning({ id: teams.id });
   if (deleted.length === 0) throw new HttpError(404, "Team not found");
+}
+
+export async function getPublicTeam(shareId: string): Promise<PublicTeam> {
+  const [row] = await db
+    .select({ team: teams, ownerName: users.displayName })
+    .from(teams)
+    .innerJoin(users, eq(teams.userId, users.id))
+    .where(and(eq(teams.shareId, shareId), eq(teams.isPublic, true)));
+  if (!row) throw new HttpError(404, "Team not found");
+
+  const [team] = await withMembers([row.team]);
+  return {
+    shareId: team.shareId,
+    name: team.name,
+    ownerName: row.ownerName,
+    members: team.members,
+    updatedAt: team.updatedAt,
+  };
 }

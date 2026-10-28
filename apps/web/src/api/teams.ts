@@ -1,4 +1,4 @@
-import type { Team, TeamInput } from "@pokedex/shared";
+import type { Team, TeamInput, PublicTeam } from "@pokedex/shared";
 import { apiRequest } from "./client";
 
 export function fetchTeams() {
@@ -19,4 +19,8 @@ export function updateTeam(id: number, input: TeamInput) {
 
 export function deleteTeam(id: number) {
   return apiRequest<void>(`/teams/${id}`, { method: "DELETE" });
+}
+
+export function fetchPublicTeam(shareId: string) {
+  return apiRequest<PublicTeam>(`/public/teams/${shareId}`);
 }

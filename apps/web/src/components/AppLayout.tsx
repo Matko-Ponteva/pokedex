@@ -1,7 +1,9 @@
 import { Link, NavLink, Outlet } from "react-router";
 import { useCurrentUser, useLogOut } from "../hooks/useAuth";
+import { useSocketConnection } from "../realtime/useSocket";
 
 export function AppLayout() {
+  useSocketConnection();
   const { data: user } = useCurrentUser();
   const logOut = useLogOut();
 
@@ -12,6 +14,7 @@ export function AppLayout() {
           <NavLink to="/" end>Pokédex</NavLink>
           <NavLink to="/explore">Explore</NavLink>
           <NavLink to="/teams">My teams</NavLink>
+          <NavLink to="/lobby">Lobby</NavLink>
         </nav>
         <div className="app-user">
           {user ? (

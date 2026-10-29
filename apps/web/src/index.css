@@ -120,3 +120,8 @@ button.danger { background: #c62828; }
 .like-button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; border: 1px solid #ccd; background: #fff; color: #1a1d29; font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
 .like-button.liked { background: #fde0dc; border-color: #f28b82; color: #b71c1c; }
 .like-button:disabled { opacity: 1; cursor: progress; }
+.status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #6b7088; }
+.status-dot::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #b0b4c4; }
+.status-dot.online::before { background: #2e9d5b; }
+.online-list { list-style: none; padding: 0; display: grid; gap: 8px; }
+.online-list li { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 8px; padding: 10px 14px; }

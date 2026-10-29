@@ -1,17 +1,11 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
-import type { ClientToServerEvents, OnlineUser, ServerToClientEvents } from "@pokedex/shared";
 import { SESSION_COOKIE, validateSession } from "../lib/sessions.ts";
-import { addConnection, onlineUsers, removeConnection } from "./presence.ts";
+import { addConnection, onlineUsers, removeConnection, onlineUser } from "./presence.ts";
+import { cancelTradesFor, registerTradeHandlers } from "./tradeHandlers.ts";
+import { userRoom, type AppServer } from "./types.ts";
 
-type SocketData = { user: OnlineUser };
-
-export type AppServer = Server<
-  ClientToServerEvents,
-  ServerToClientEvents,
-  Record<string, never>,
-  SocketData
->;
+const OFFLINE_GRACE_MS = 5000;
 
 function readCookie(header: string | undefined, name: string): string | undefined {
   for (const part of header?.split(";") ?? []) {
@@ -42,7 +36,10 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
 
   io.on("connection", (socket) => {
     const user = socket.data.user;
+    socket.join(userRoom(user.id));
     if (addConnection(user)) broadcastLobby();
+
+    registerTradeHandlers(io, socket);
 
     socket.on("lobby:join", (reply) => {
       socket.join("lobby");
@@ -54,7 +51,12 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
     });
 
     socket.on("disconnect", () => {
-      if (removeConnection(user.id)) broadcastLobby();
+      if (!removeConnection(user.id)) return;
+      setTimeout(() => {
+        if (onlineUser(user.id)) return;
+        cancelTradesFor(io, user);
+        broadcastLobby();
+      }, OFFLINE_GRACE_MS);
     });
   });
 

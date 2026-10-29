@@ -26,3 +26,7 @@ export function onlineUsers(): OnlineUser[] {
     .map((entry) => entry.user)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
+
+export function onlineUser(userId: number): OnlineUser | undefined {
+  return connections.get(userId)?.user;
+}

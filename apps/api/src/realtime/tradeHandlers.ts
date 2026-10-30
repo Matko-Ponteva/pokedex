@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { ZodError } from "zod";
 import {
   tradeAcceptInputSchema, tradeIdInputSchema, tradeOfferInputSchema,
-  type Ack, type OnlineUser, type TradeCloseReason, type TradeOffer,
+  type OnlineUser, type TradeCloseReason, type TradeOffer,
 } from "@pokedex/shared";
 import { HttpError } from "../lib/errors.ts";
 import { getOwnedMember, swapMembers } from "../services/tradeService.ts";
@@ -11,27 +10,12 @@ import {
   addTrade, findOutgoing, getTrade, removeTrade, tradesInvolving, type PendingTrade,
 } from "./trades.ts";
 import { userRoom, type AppServer, type AppSocket } from "./types.ts";
+import { respond } from "./respond.ts";
 
 const OFFER_LIFETIME_MS = 60_000;
 
 function title(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1).replaceAll("-", " ");
-}
-
-async function respond<T>(reply: (result: Ack<T>) => void, work: () => Promise<T>) {
-  if (typeof reply !== "function") return;
-  try {
-    reply({ ok: true, data: await work() });
-  } catch (error) {
-    if (error instanceof HttpError) {
-      reply({ ok: false, error: error.message });
-    } else if (error instanceof ZodError) {
-      reply({ ok: false, error: "Invalid request" });
-    } else {
-      console.error(error);
-      reply({ ok: false, error: "Something went wrong" });
-    }
-  }
 }
 
 function closeTrade(

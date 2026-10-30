@@ -10,6 +10,7 @@ import { TeamEditorPage } from "./pages/TeamEditorPage";
 import { PublicTeamPage } from "./pages/PublicTeamPage";
 import { ExplorePage } from "./pages/ExplorePage";
 import { LobbyPage } from "./pages/LobbyPage";
+import { BattlePage } from "./pages/BattlePage";
 
 function NotFoundPage() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/teams/new" element={<TeamEditorPage />} />
           <Route path="/teams/:id" element={<TeamEditorPage />} />
           <Route path="/lobby" element={<LobbyPage />} />
+          <Route path="/battle/:battleId" element={<BattlePage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

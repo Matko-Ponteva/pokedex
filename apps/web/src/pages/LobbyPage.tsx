@@ -2,17 +2,29 @@ import { useState } from "react";
 import { useCurrentUser } from "../hooks/useAuth";
 import { useOnlineUsers, useSocketConnected } from "../realtime/useSocket";
 import { useTradeState } from "../realtime/tradeStore";
+import { useBattleState } from "../realtime/battleStore";
 import { IncomingTradeCard, OfferForm, OutgoingTradeCard } from "../components/TradeCards";
+import { ChallengeForm, IncomingChallengeCard, OutgoingChallengeCard } from "../components/ChallengeCards";
+
+type Panel = { userId: number; kind: "trade" | "battle" };
 
 export function LobbyPage() {
   const { data: me } = useCurrentUser();
   const connected = useSocketConnected();
   const users = useOnlineUsers();
-  const { trades, notices } = useTradeState();
-  const [offeringTo, setOfferingTo] = useState<number | null>(null);
+  const { trades, notices: tradeNotices } = useTradeState();
+  const { challenges, notices: battleNotices } = useBattleState();
+  const [panel, setPanel] = useState<Panel | null>(null);
 
-  const incoming = trades.filter((trade) => trade.to.id === me?.id);
-  const outgoing = trades.find((trade) => trade.from.id === me?.id);
+  const incomingOffers = trades.filter((t) => t.to.id === me?.id);
+  const outgoingOffer = trades.find((t) => t.from.id === me?.id);
+  const incomingChallenges = challenges.filter((c) => c.to.id === me?.id);
+  const outgoingChallenge = challenges.find((c) => c.from.id === me?.id);
+
+  const notices = [
+    ...battleNotices.map((n) => ({ key: `battle-${n.key}`, message: n.message, done: false })),
+    ...tradeNotices.map((n) => ({ key: `trade-${n.key}`, message: n.message, done: n.reason === "completed" })),
+  ];
 
   return (
     <main>
@@ -26,26 +38,30 @@ export function LobbyPage() {
       {notices.length > 0 && (
         <ul className="notices" role="status">
           {notices.map((notice) => (
-            <li key={notice.key} className={notice.reason === "completed" ? "done" : undefined}>
+            <li key={notice.key} className={notice.done ? "done" : undefined}>
               {notice.message}
             </li>
           ))}
         </ul>
       )}
 
-      {incoming.length > 0 && (
+      {(incomingChallenges.length > 0 || incomingOffers.length > 0) && (
         <section>
-          <h2>Offers for you</h2>
-          {incoming.map((offer) => (
+          <h2>Waiting for you</h2>
+          {incomingChallenges.map((challenge) => (
+            <IncomingChallengeCard key={challenge.id} challenge={challenge} />
+          ))}
+          {incomingOffers.map((offer) => (
             <IncomingTradeCard key={offer.id} offer={offer} />
           ))}
         </section>
       )}
 
-      {outgoing && (
+      {(outgoingChallenge || outgoingOffer) && (
         <section>
-          <h2>Your offer</h2>
-          <OutgoingTradeCard offer={outgoing} />
+          <h2>Sent by you</h2>
+          {outgoingChallenge && <OutgoingChallengeCard challenge={outgoingChallenge} />}
+          {outgoingOffer && <OutgoingTradeCard offer={outgoingOffer} />}
         </section>
       )}
 
@@ -55,30 +71,43 @@ export function LobbyPage() {
           <p className="status">Loading…</p>
         ) : (
           <ul className="online-list">
-            {users.map((user) => (
-              <li key={user.id}>
-                <div className="online-row">
-                  <span className="status-dot online" aria-hidden="true" />
-                  <span className="online-name">
-                    {user.displayName}
-                    {user.id === me?.id && <span className="muted"> (you)</span>}
-                  </span>
-                  {user.id !== me?.id && offeringTo !== user.id && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={outgoing !== undefined}
-                      onClick={() => setOfferingTo(user.id)}
-                    >
-                      Offer a trade
-                    </button>
-                  )}
-                </div>
-                {offeringTo === user.id && (
-                  <OfferForm to={user} onClose={() => setOfferingTo(null)} />
-                )}
-              </li>
-            ))}
+            {users.map((user) => {
+              const isMe = user.id === me?.id;
+              const open = panel?.userId === user.id ? panel.kind : null;
+              return (
+                <li key={user.id}>
+                  <div className="online-row">
+                    <span className="status-dot online" aria-hidden="true" />
+                    <span className="online-name">
+                      {user.displayName}
+                      {isMe && <span className="muted"> (you)</span>}
+                    </span>
+                    {!isMe && open === null && (
+                      <>
+                        <button
+                          type="button"
+                          className="secondary"
+                          disabled={outgoingOffer !== undefined}
+                          onClick={() => setPanel({ userId: user.id, kind: "trade" })}
+                        >
+                          Offer a trade
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          disabled={outgoingChallenge !== undefined}
+                          onClick={() => setPanel({ userId: user.id, kind: "battle" })}
+                        >
+                          Challenge
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {open === "trade" && <OfferForm to={user} onClose={() => setPanel(null)} />}
+                  {open === "battle" && <ChallengeForm to={user} onClose={() => setPanel(null)} />}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

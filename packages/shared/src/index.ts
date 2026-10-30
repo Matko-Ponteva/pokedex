@@ -6,6 +6,7 @@ export * from "./typeChart.ts";
 export * from "./defense.ts";
 export * from "./offense.ts";
 export * from "./realtime.ts";
+export * from "./battle.ts";
 
 export const DEFAULT_PAGE_SIZE = 24;
 

@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from "react-router";
 import { useCurrentUser, useLogOut } from "../hooks/useAuth";
 import { useSocketConnection } from "../realtime/useSocket";
 import { useTradeState, useTradeSync } from "../realtime/tradeStore";
+import { useBattleNavigation, useBattleState } from "../realtime/battleStore";
 
 export function AppLayout() {
   useSocketConnection();
@@ -9,6 +10,10 @@ export function AppLayout() {
   useTradeSync();
   const { trades } = useTradeState();
   const waitingOffers = trades.filter((trade) => trade.to.id === user?.id).length;
+  useBattleNavigation();
+  const { challenges } = useBattleState();
+  const waitingChallenges = challenges.filter((c) => c.to.id === user?.id).length;
+  const waiting = waitingOffers + waitingChallenges;
   const logOut = useLogOut();
 
   return (
@@ -20,9 +25,9 @@ export function AppLayout() {
           <NavLink to="/teams">My teams</NavLink>
           <NavLink to="/lobby">
             Lobby
-            {waitingOffers > 0 && (
-              <span className="nav-count" aria-label={`, ${waitingOffers} trade offers`}>
-                {waitingOffers}
+            {waiting > 0 && (
+              <span className="nav-count" aria-label={`, ${waiting} pending requests`}>
+                {waiting}
               </span>
             )}
           </NavLink>

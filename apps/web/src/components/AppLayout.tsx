@@ -1,11 +1,12 @@
 import { Link, NavLink, Outlet } from "react-router";
 import { useCurrentUser, useLogOut } from "../hooks/useAuth";
-import { useSocketConnection } from "../realtime/useSocket";
+import { useSocketConnection, useSocketConnected } from "../realtime/useSocket";
 import { useTradeState, useTradeSync } from "../realtime/tradeStore";
 import { useBattleNavigation, useBattleState } from "../realtime/battleStore";
 
 export function AppLayout() {
   useSocketConnection();
+  const connected = useSocketConnected();
   const { data: user } = useCurrentUser();
   useTradeSync();
   const { trades } = useTradeState();
@@ -18,6 +19,11 @@ export function AppLayout() {
 
   return (
     <>
+          {user && !connected && (
+        <div className="connection-banner" role="status">
+          Connecting to the server… Trades and battles resume automatically.
+        </div>
+      )}
       <header className="app-header">
         <nav className="app-nav">
           <NavLink to="/" end>Pokédex</NavLink>

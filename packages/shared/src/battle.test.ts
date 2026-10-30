@@ -120,4 +120,15 @@ describe("viewFor", () => {
     expect(view.opponent.remaining).toBe(2);
     expect(view).toMatchObject({ hasChosen: false, opponentHasChosen: true });
   });
+
+  it("reports the turn deadline and an absent opponent", () => {
+    const battle = battleOf([fighter(["water"])], [fighter(["fire"])]);
+    const view = viewFor(battle, 1, new Set(), {
+      turnEndsAt: Date.UTC(2026, 0, 1, 12, 0, 45),
+      awayUntil: new Map([[2, Date.UTC(2026, 0, 1, 12, 0, 30)]]),
+    });
+    expect(view.turnEndsAt).toBe("2026-01-01T12:00:45.000Z");
+    expect(view.opponentAwayUntil).toBe("2026-01-01T12:00:30.000Z");
+    expect(viewFor(battle, 2, new Set()).opponentAwayUntil).toBeNull();
+  });
 });

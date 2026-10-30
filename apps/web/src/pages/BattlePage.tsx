@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import type { Combatant } from "@pokedex/shared";
 import { TypeBadge } from "../components/TypeBadge";
@@ -6,6 +6,19 @@ import { formatMove, formatPokemonName } from "../lib/format";
 import { useBattleState } from "../realtime/battleStore";
 import { socket } from "../realtime/socket";
 import { useSocketConnected } from "../realtime/useSocket";
+
+function useNow(intervalMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+function secondsUntil(time: string | null, now: number): number | null {
+  return time === null ? null : Math.max(0, Math.ceil((Date.parse(time) - now) / 1000));
+}
 
 type Shown = Pick<Combatant, "name" | "spriteUrl" | "types" | "hp" | "maxHp">;
 
@@ -47,6 +60,8 @@ export function BattlePage() {
   const connected = useSocketConnected();
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const now = useNow();
+
 
   if (!battle || battle.id !== battleId) {
     return (
@@ -61,6 +76,8 @@ export function BattlePage() {
   const opponentName = battle.opponent.displayName;
   const finished = battle.winner !== null;
   const myRemaining = battle.me.team.filter((c) => c.hp > 0).length;
+  const secondsLeft = secondsUntil(battle.turnEndsAt, now);
+  const awaySeconds = secondsUntil(battle.opponentAwayUntil, now);
 
   const status = finished
     ? battle.winner === battle.me.userId
@@ -95,6 +112,16 @@ export function BattlePage() {
       <p className={finished ? "battle-status finished" : "battle-status"} role="status">
         {status}
       </p>
+        {!finished && awaySeconds !== null && (
+        <p className="opponent-away">
+          {opponentName} lost their connection. They have {awaySeconds} seconds to come back, or they forfeit.
+        </p>
+      )}
+      {!finished && secondsLeft !== null && !battle.hasChosen && (
+        <p className={secondsLeft <= 10 ? "battle-timer urgent" : "battle-timer"}>
+          Time left to choose: {secondsLeft} seconds
+        </p>
+      )}
 
       <div className="arena">
         <CombatantCard label={opponentName} combatant={battle.opponent.active} note={`${battle.opponent.remaining} Pokémon left`} />

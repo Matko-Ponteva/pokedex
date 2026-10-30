@@ -57,6 +57,8 @@ export type BattleView = {
   opponent: OpponentView;
   hasChosen: boolean;
   opponentHasChosen: boolean;
+  turnEndsAt: string | null;
+  opponentAwayUntil: string | null;
 };
 
 function title(name: string): string {
@@ -170,7 +172,23 @@ export function resolveTurn(battle: Battle, choices: [number, number], random: R
   return next;
 }
 
-export function viewFor(battle: Battle, userId: number, chosen: ReadonlySet<number>): BattleView {
+export type BattleTiming = {
+  turnEndsAt: number | null;
+  awayUntil: ReadonlyMap<number, number>;
+};
+
+const NO_TIMING: BattleTiming = { turnEndsAt: null, awayUntil: new Map() };
+
+function toIso(time: number | null | undefined): string | null {
+  return time === null || time === undefined ? null : new Date(time).toISOString();
+}
+
+export function viewFor(
+  battle: Battle,
+  userId: number,
+  chosen: ReadonlySet<number>,
+  timing: BattleTiming = NO_TIMING
+): BattleView {
   const mine = battle.sides.find((side) => side.userId === userId);
   const theirs = battle.sides.find((side) => side.userId !== userId);
   if (!mine || !theirs) throw new Error("Not a player in this battle");
@@ -190,5 +208,7 @@ export function viewFor(battle: Battle, userId: number, chosen: ReadonlySet<numb
     },
     hasChosen: chosen.has(userId),
     opponentHasChosen: chosen.has(theirs.userId),
+    turnEndsAt: toIso(timing.turnEndsAt),
+    opponentAwayUntil: toIso(timing.awayUntil.get(theirs.userId)),
   };
 }

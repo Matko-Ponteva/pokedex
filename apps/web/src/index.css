@@ -159,3 +159,7 @@ button.danger { background: #c62828; }
 .battle-log { list-style: none; padding: 0; margin: 0; max-height: 240px; overflow-y: auto; background: #fff; border-radius: 12px; }
 .battle-log li { padding: 6px 12px; border-bottom: 1px solid #eef0f6; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .hp-fill { transition: none; } }
+.connection-banner { background: #fff4d6; color: #6b4e00; text-align: center; padding: 6px 12px; font-size: 14px; }
+.battle-timer { color: #6b7088; font-variant-numeric: tabular-nums; }
+.battle-timer.urgent { color: #c62828; font-weight: 700; }
+.opponent-away { background: #fde0dc; color: #b71c1c; border-radius: 8px; padding: 8px 12px; }

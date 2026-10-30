@@ -4,7 +4,7 @@ import { SESSION_COOKIE, validateSession } from "../lib/sessions.ts";
 import { addConnection, onlineUsers, removeConnection, onlineUser } from "./presence.ts";
 import { cancelTradesFor, registerTradeHandlers } from "./tradeHandlers.ts";
 import { userRoom, type AppServer } from "./types.ts";
-import { cancelChallengesFor, registerBattleHandlers } from "./battleHandlers.ts";
+import { cancelChallengesFor, handleBattleDisconnect, registerBattleHandlers } from "./battleHandlers.ts";
 
 const OFFLINE_GRACE_MS = 5000;
 
@@ -58,6 +58,7 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
         if (onlineUser(user.id)) return;
         cancelTradesFor(io, user);
         cancelChallengesFor(io, user);
+        handleBattleDisconnect(io, user);
         broadcastLobby();
       }, OFFLINE_GRACE_MS);
     });

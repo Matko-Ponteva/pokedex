@@ -10,7 +10,7 @@ test("signs up, logs out and logs back in", async ({ page }) => {
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  await expect(page.getByRole("heading", { name: "My teams" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My team" })).toBeVisible();
   await expect(page.getByText(`Logged in as ${user.displayName}`)).toBeVisible();
 
   await page.getByRole("button", { name: "Log out" }).click();

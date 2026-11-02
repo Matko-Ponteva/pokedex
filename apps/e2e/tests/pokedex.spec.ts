@@ -8,7 +8,7 @@ test("searches the Pokédex and opens a Pokémon", async ({ page }) => {
   await expect(charmander).toBeVisible();
   await charmander.click();
 
-  await expect(page).toHaveURL(/\/\/4$/);
+await expect(page).toHaveURL(/\/pokemon\/4$/);
   await expect(page.getByRole("heading", { level: 1, name: /charmander/i })).toBeVisible();
 
   await page.reload();

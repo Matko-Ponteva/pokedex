@@ -18,5 +18,8 @@ RUN pnpm --filter web build
 # Stage 2: serve them with nginx
 FROM nginx:stable-alpine
 
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+ENV PORT=80
+ENV API_UPSTREAM=http://api:3000
+ENV API_HOST=api
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html

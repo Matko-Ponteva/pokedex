@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "migrate": "node --env-file-if-exists=.env src/migrate.ts"
   },
   "dependencies": {
     "@pokedex/shared": "workspace:*",

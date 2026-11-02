@@ -15,5 +15,43 @@ services:
       timeout: 3s
       retries: 10
 
+  migrate:
+    profiles: ["full"]
+    image: pokedex-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "src/migrate.ts"]
+    environment:
+      DATABASE_URL: postgres://pokedex:pokedex@db:5432/pokedex
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    profiles: ["full"]
+    image: pokedex-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    init: true
+    environment:
+      DATABASE_URL: postgres://pokedex:pokedex@db:5432/pokedex
+      PORT: "3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    profiles: ["full"]
+    image: pokedex-web:local
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
 volumes:
   pgdata:

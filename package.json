@@ -1,16 +1,19 @@
 {
   "name": "pokedex",
   "private": true,
+  "packageManager": "pnpm@12.15.0",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter api db:generate",
     "db:migrate": "pnpm --filter api db:migrate",
     "db:studio": "pnpm --filter api db:studio",
-    "test": "pnpm -r test"
+    "stack:up": "docker compose --profile full up --build",
+    "stack:down": "docker compose --profile full down"
   }
 }

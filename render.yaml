@@ -1,0 +1,34 @@
+databases:
+  - name: pokedex-db
+    plan: free
+    databaseName: pokedex
+    user: pokedex
+
+services:
+  - type: web
+    name: pokedex-api
+    runtime: docker
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerCommand: sh -c "node src/migrate.ts && exec node src/index.ts"
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pokedex-db
+          property: connectionString
+
+  - type: web
+    name: pokedex-web
+    runtime: docker
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./apps/web/Dockerfile
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: API_UPSTREAM
+        sync: false
+      - key: API_HOST
+        sync: false

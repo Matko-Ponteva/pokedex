@@ -11,7 +11,7 @@ services:
     plan: free
     dockerContext: .
     dockerfilePath: ./apps/api/Dockerfile
-    dockerCommand: sh -c "node src/migrate.ts && exec node src/index.ts"
+    dockerCommand: sh start.sh
     healthCheckPath: /api/health
     autoDeployTrigger: checksPass
     envVars:
@@ -31,4 +31,4 @@ services:
       - key: API_UPSTREAM
         sync: false
       - key: API_HOST
-        sync: false
+        sync: falses

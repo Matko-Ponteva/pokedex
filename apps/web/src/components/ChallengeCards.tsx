@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ChallengeInfo, OnlineUser } from "@pokedex/shared";
+import { DEFAULT_RULESET, RULESETS, type ChallengeInfo, type OnlineUser, type Ruleset, type RulesetId } from "@pokedex/shared";
 import { useTeams } from "../hooks/useTeams";
 import { socket } from "../realtime/socket";
 
@@ -29,8 +29,33 @@ function TeamSelect({ value, onChange }: { value: string; onChange: (value: stri
   );
 }
 
+function RulesetSelect({ value, onChange }: { value: RulesetId; onChange: (value: RulesetId) => void }) {
+  return (
+    <label className="move-select">
+      <span>Rules</span>
+      <select value={value} onChange={(e) => onChange(e.target.value as RulesetId)}>
+        {Object.values(RULESETS).map((ruleset) => (
+          <option key={ruleset.id} value={ruleset.id}>
+            {ruleset.name}
+          </option>
+        ))}
+      </select>
+      <span className="muted">{RULESETS[value].description}</span>
+    </label>
+  );
+}
+
+function RulesetNote({ ruleset }: { ruleset: Ruleset }) {
+  return (
+    <p className="ruleset-note">
+      <span className="ruleset-chip">{ruleset.name}</span> {ruleset.description}
+    </p>
+  );
+}
+
 export function ChallengeForm({ to, onClose }: { to: OnlineUser; onClose: () => void }) {
   const [teamId, setTeamId] = useState("");
+  const [rulesetId, setRulesetId] = useState<RulesetId>(DEFAULT_RULESET);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -41,7 +66,7 @@ export function ChallengeForm({ to, onClose }: { to: OnlineUser; onClose: () => 
     try {
       const result = await socket
         .timeout(ACK_TIMEOUT_MS)
-        .emitWithAck("battle:challenge", { toUserId: to.id, teamId: Number(teamId) });
+        .emitWithAck("battle:challenge", { toUserId: to.id, teamId: Number(teamId), rulesetId });
       if (result.ok) onClose();
       else setError(result.error);
     } catch {
@@ -55,6 +80,7 @@ export function ChallengeForm({ to, onClose }: { to: OnlineUser; onClose: () => 
     <div className="request-card">
       <p>Challenge {to.displayName} to a battle:</p>
       <TeamSelect value={teamId} onChange={setTeamId} />
+      <RulesetSelect value={rulesetId} onChange={setRulesetId} />
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="request-actions">
         <button type="button" onClick={send} disabled={!teamId || sending}>
@@ -95,6 +121,7 @@ export function IncomingChallengeCard({ challenge }: { challenge: ChallengeInfo 
       <p>
         <strong>{challenge.from.displayName}</strong> challenges you to a battle!
       </p>
+      <RulesetNote ruleset={challenge.ruleset} />
       <TeamSelect value={teamId} onChange={setTeamId} />
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="request-actions">
@@ -116,6 +143,7 @@ export function OutgoingChallengeCard({ challenge }: { challenge: ChallengeInfo 
         You challenged <strong>{challenge.to.displayName}</strong>. Waiting for an answer; challenges
         expire after a minute.
       </p>
+      <RulesetNote ruleset={challenge.ruleset} />
     </div>
   );
 }

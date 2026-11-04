@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { useCurrentUser } from "../hooks/useAuth";
 import { useOnlineUsers, useSocketConnected } from "../realtime/useSocket";
+import { useLiveBattles, useOnlineUsers, useSocketConnected } from "../realtime/useSocket";
+import { useTradeState } from "../realtime/tradeStore";
 import { useBattleState } from "../realtime/battleStore";
 import { ChallengeForm, IncomingChallengeCard, OutgoingChallengeCard } from "../components/ChallengeCards";
 
@@ -10,6 +13,10 @@ export function LobbyPage() {
   const users = useOnlineUsers();
   const { challenges, notices } = useBattleState();
   const [openUserId, setOpenUserId] = useState<number | null>(null);
+  const liveBattles = useLiveBattles();
+  const { trades, notices: tradeNotices } = useTradeState();
+  const { challenges, notices: battleNotices } = useBattleState();
+  const [panel, setPanel] = useState<Panel | null>(null);
 
   const incomingChallenges = challenges.filter((c) => c.to.id === me?.id);
   const outgoingChallenge = challenges.find((c) => c.from.id === me?.id);
@@ -44,6 +51,30 @@ export function LobbyPage() {
         <section>
           <h2>Sent by you</h2>
           {outgoingChallenge && <OutgoingChallengeCard challenge={outgoingChallenge} />}
+        </section>
+      )}
+
+      {liveBattles.length > 0 && (
+        <section>
+          <h2>Live battles</h2>
+          <ul className="live-battles">
+            {liveBattles.map((live) => {
+              const playing = live.players.some((player) => player.id === me?.id);
+              return (
+                <li key={live.id}>
+                  <span className="online-name">
+                    {live.players[0].displayName} <span className="muted">vs</span> {live.players[1].displayName}
+                  </span>
+                  <span className="muted">
+                    {live.ruleset.name} · Turn {live.turn + 1} · {live.spectators === 1 ? "1 spectator" : `${live.spectators} spectators`}
+                  </span>
+                  <Link className="button" to={playing ? `/battle/${live.id}` : `/battle/${live.id}/watch`}>
+                    {playing ? "Return" : "Watch"}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 

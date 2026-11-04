@@ -3,12 +3,46 @@ import { effectivenessAgainst } from "./typeChart.ts";
 
 export type MoveCategory = "physical" | "special" | "status";
 
+export const STATUS_CONDITIONS = ["burn", "poison", "paralysis", "sleep", "freeze"] as const;
+export type StatusCondition = (typeof STATUS_CONDITIONS)[number];
+
+export function isStatusCondition(value: unknown): value is StatusCondition {
+  return typeof value === "string" && (STATUS_CONDITIONS as readonly string[]).includes(value);
+}
+
 export type MoveInfo = {
   name: string;
   type: PokemonType;
   category: MoveCategory;
   power: number | null;
+  /** Percent chance to hit; null or missing means the move never misses */
+  accuracy?: number | null;
+  /** Major status the move can inflict on the target */
+  ailment?: StatusCondition | null;
+  /** Percent chance to inflict the ailment; 0 means it always does */
+  ailmentChance?: number;
+  /** 0 for normal moves, 1 or more for high critical-hit moves */
+  critRate?: number;
+  /** Stat stages the move changes, e.g. Swords Dance: attack +2 */
+  statChanges?: StatChange[];
+  /** Whose stats change: the user's (Dragon Dance, Flame Charge) or the target's (Scary Face, Crunch) */
+  statTarget?: "user" | "target";
+  /** Percent chance of the stat change for damaging moves; 0 means it always happens */
+  statChance?: number;
+  /** Percent of max HP restored by healing moves like Recover */
+  healing?: number;
+  /** Percent of damage dealt the user regains (Giga Drain), or loses as recoil when negative */
+  drain?: number;
 };
+
+export const BOOST_STATS = ["attack", "defense", "special-attack", "special-defense", "speed", "accuracy", "evasion"] as const;
+export type BoostStat = (typeof BOOST_STATS)[number];
+
+export function isBoostStat(value: unknown): value is BoostStat {
+  return typeof value === "string" && (BOOST_STATS as readonly string[]).includes(value);
+}
+
+export type StatChange = { stat: BoostStat; change: number };
 
 export type Attacker = {
   types: readonly PokemonType[];

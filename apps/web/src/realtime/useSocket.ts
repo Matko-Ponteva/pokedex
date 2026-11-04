@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { OnlineUser } from "@pokedex/shared";
+import type { LiveBattleInfo, OnlineUser } from "@pokedex/shared";
 import { useCurrentUser } from "../hooks/useAuth";
 import { socket } from "./socket";
 
@@ -44,4 +44,20 @@ export function useOnlineUsers(): OnlineUser[] | null {
   }, [connected]);
 
   return users;
+}
+
+export function useLiveBattles(): LiveBattleInfo[] {
+  const [battles, setBattles] = useState<LiveBattleInfo[]>([]);
+  const connected = useSocketConnected();
+
+  useEffect(() => {
+    if (!connected) return;
+    socket.on("lobby:battles", setBattles);
+    socket.emit("lobby:battles", setBattles);
+    return () => {
+      socket.off("lobby:battles", setBattles);
+    };
+  }, [connected]);
+
+  return battles;
 }

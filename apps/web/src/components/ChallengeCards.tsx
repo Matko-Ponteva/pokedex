@@ -77,12 +77,12 @@ export function ChallengeForm({ to, onClose }: { to: OnlineUser; onClose: () => 
   }
 
   return (
-    <div className="trade-card">
+    <div className="request-card">
       <p>Challenge {to.displayName} to a battle:</p>
       <TeamSelect value={teamId} onChange={setTeamId} />
       <RulesetSelect value={rulesetId} onChange={setRulesetId} />
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="trade-actions">
+      <div className="request-actions">
         <button type="button" onClick={send} disabled={!teamId || sending}>
           {sending ? "Sending…" : "Send challenge"}
         </button>
@@ -117,14 +117,14 @@ export function IncomingChallengeCard({ challenge }: { challenge: ChallengeInfo 
   }
 
   return (
-    <div className="trade-card incoming">
+    <div className="request-card incoming">
       <p>
         <strong>{challenge.from.displayName}</strong> challenges you to a battle!
       </p>
       <RulesetNote ruleset={challenge.ruleset} />
       <TeamSelect value={teamId} onChange={setTeamId} />
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="trade-actions">
+      <div className="request-actions">
         <button type="button" onClick={() => answer(true)} disabled={!teamId || busy}>
           {busy ? "Starting…" : "Accept"}
         </button>
@@ -138,7 +138,7 @@ export function IncomingChallengeCard({ challenge }: { challenge: ChallengeInfo 
 
 export function OutgoingChallengeCard({ challenge }: { challenge: ChallengeInfo }) {
   return (
-    <div className="trade-card">
+    <div className="request-card">
       <p>
         You challenged <strong>{challenge.to.displayName}</strong>. Waiting for an answer; challenges
         expire after a minute.

@@ -2,7 +2,6 @@ import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { SESSION_COOKIE, validateSession } from "../lib/sessions.ts";
 import { addConnection, onlineUsers, removeConnection, onlineUser } from "./presence.ts";
-import { cancelTradesFor, registerTradeHandlers } from "./tradeHandlers.ts";
 import { userRoom, type AppServer } from "./types.ts";
 import { cancelChallengesFor, handleBattleDisconnect, liveBattles, registerBattleHandlers } from "./battleHandlers.ts";
 
@@ -40,7 +39,6 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
     socket.join(userRoom(user.id));
     if (addConnection(user)) broadcastLobby();
 
-    registerTradeHandlers(io, socket);
     registerBattleHandlers(io, socket);
 
     socket.on("lobby:join", (reply) => {
@@ -57,7 +55,6 @@ export function createSocketServer(httpServer: HttpServer): AppServer {
       if (!removeConnection(user.id)) return;
       setTimeout(() => {
         if (onlineUser(user.id)) return;
-        cancelTradesFor(io, user);
         cancelChallengesFor(io, user);
         handleBattleDisconnect(io, user);
         broadcastLobby();

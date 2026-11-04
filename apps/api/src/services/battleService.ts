@@ -1,10 +1,10 @@
-import { createCombatant, type Combatant } from "@pokedex/shared";
+import { createCombatant, type Combatant, type Ruleset } from "@pokedex/shared";
 import { HttpError } from "../lib/errors.ts";
 import { getMoves } from "./moveService.ts";
 import { getPokemon } from "./pokemonService.ts";
 import { getTeam } from "./teamService.ts";
 
-export async function loadCombatants(userId: number, teamId: number): Promise<Combatant[]> {
+export async function loadCombatants(userId: number, teamId: number, ruleset: Ruleset): Promise<Combatant[]> {
   const team = await getTeam(userId, teamId);
   if (team.members.length === 0) throw new HttpError(400, "Choose a team with at least one Pokémon");
 
@@ -20,6 +20,7 @@ export async function loadCombatants(userId: number, teamId: number): Promise<Co
       name: member.pokemon.name,
       spriteUrl: member.pokemon.spriteUrl,
       types: member.pokemon.types,
+      level: ruleset.level,
       baseStats: details[index].stats,
       moves: member.moves.flatMap((name) => {
         const move = movesByName.get(name);

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, integer, jsonb, pgTable, primaryKey, text, timestamp, boolean, uuid, index } from "drizzle-orm/pg-core";
-import type { MoveCategory, PokemonDetail, PokemonType } from "@pokedex/shared";
+import type { MoveCategory, PokemonDetail, PokemonType, StatChange, StatusCondition } from "@pokedex/shared";
 
 export const pokemon = pgTable("pokemon", {
   id: integer("id").primaryKey(),
@@ -83,6 +83,17 @@ export const moves = pgTable("moves", {
   type: text("type").$type<PokemonType>().notNull(),
   category: text("category").$type<MoveCategory>().notNull(),
   power: integer("power"),
+  accuracy: integer("accuracy"),
+  ailment: text("ailment").$type<StatusCondition>(),
+  ailmentChance: integer("ailment_chance").notNull().default(0),
+  critRate: integer("crit_rate").notNull().default(0),
+  statChanges: jsonb("stat_changes").$type<StatChange[]>().notNull().default([]),
+  statTarget: text("stat_target").$type<"user" | "target">().notNull().default("target"),
+  statChance: integer("stat_chance").notNull().default(0),
+  healing: integer("healing").notNull().default(0),
+  drain: integer("drain").notNull().default(0),
+  /** Bumped when we start reading more move data from PokéAPI, so older rows get refetched */
+  dataVersion: integer("data_version").notNull().default(0),
 });
 
 export const likes = pgTable(

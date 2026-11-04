@@ -1,6 +1,6 @@
 import { HttpError } from "./errors.ts";
 import {
-  POKEMON_TYPES, type EvolutionStage, type MoveCategory, type MoveInfo,
+  POKEMON_TYPES, isBoostStat, isStatusCondition, type EvolutionStage, type StatChange, type MoveCategory, type MoveInfo,
   type PokemonDetail, type PokemonSummary, type PokemonType,
 } from "@pokedex/shared";
 
@@ -32,9 +32,24 @@ type RawEvolutionChain = { chain: RawChainLink };
 type RawMove = {
   name: string;
   power: number | null;
+  accuracy: number | null;
   type: NamedResource;
   damage_class: NamedResource;
+  target: NamedResource;
+  stat_changes: { change: number; stat: NamedResource }[];
+  meta: {
+    ailment: NamedResource;
+    ailment_chance: number;
+    crit_rate: number;
+    category: NamedResource;
+    stat_chance: number;
+    healing: number;
+    drain: number;
+  } | null;
 };
+
+/** Move targets that mean "the user itself" */
+const SELF_TARGETS = new Set(["user", "users-field", "user-and-allies", "user-or-ally", "all-allies"]);
 
 async function fetchJson<T>(url: string, notFoundMessage = "Pokémon not found"): Promise<T> {
   const res = await fetch(url);
@@ -130,5 +145,17 @@ export async function fetchMove(name: string): Promise<MoveInfo> {
     type: move.type.name as PokemonType,
     category: move.damage_class.name as MoveCategory,
     power: move.power,
+    accuracy: move.accuracy,
+    ailment: isStatusCondition(move.meta?.ailment.name) ? move.meta.ailment.name : null,
+    ailmentChance: move.meta?.ailment_chance ?? 0,
+    critRate: move.meta?.crit_rate ?? 0,
+    statChanges: move.stat_changes.flatMap((c): StatChange[] =>
+      isBoostStat(c.stat.name) ? [{ stat: c.stat.name, change: c.change }] : []
+    ),
+    statTarget:
+      move.meta?.category.name === "damage-raise" || SELF_TARGETS.has(move.target.name) ? "user" : "target",
+    statChance: move.meta?.stat_chance ?? 0,
+    healing: move.meta?.healing ?? 0,
+    drain: move.meta?.drain ?? 0,
   };
 }

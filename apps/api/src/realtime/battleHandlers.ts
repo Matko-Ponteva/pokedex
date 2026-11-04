@@ -1,20 +1,26 @@
 import { randomUUID } from "node:crypto";
 import {
-  battleChallengeInputSchema, battleForfeitInputSchema, battleMoveInputSchema, battleRespondInputSchema,
-  resolveTurn, viewFor,
-  type Battle, type BattleSide, type ChallengeInfo, type Combatant, type OnlineUser,
+  battleChallengeInputSchema, battleChatInputSchema, battleChatModeInputSchema, battleForfeitInputSchema,
+  battleActionInputSchema, battleIdInputSchema, battleRespondInputSchema,
+  canSeeChat, choiceError, healthyBench, replacementError, resolveReplacements, resolveTurn, rulesetOf, spectatorView, viewFor,
+  type Battle, type BattleChoice, type BattleSide, type ChallengeInfo, type ChatMessage, type ChatMode, type Combatant,
+  type LiveBattleInfo, type OnlineUser, type SpectatorView,
 } from "@pokedex/shared";
 import { HttpError } from "../lib/errors.ts";
 import { loadCombatants } from "../services/battleService.ts";
 import { onlineUser } from "./presence.ts";
 import { respond } from "./respond.ts";
-import { userRoom, type AppServer, type AppSocket } from "./types.ts";
+import { userRoom, watchRoom, type AppServer, type AppSocket } from "./types.ts";
 
 const CHALLENGE_LIFETIME_MS = 60_000;
 const FINISHED_BATTLE_LIFETIME_MS = 5 * 60_000;
 const TURN_LIMIT_MS = 45_000;
 const RECONNECT_WINDOW_MS = 30_000;
 const MAX_TIMEOUTS = 2;
+const CHAT_HISTORY = 100;
+// At most CHAT_BURST messages per CHAT_WINDOW_MS for each user
+const CHAT_BURST = 5;
+const CHAT_WINDOW_MS = 5000;
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -26,15 +32,23 @@ type PendingChallenge = {
 
 type LiveBattle = {
   battle: Battle;
-  choices: Map<number, number>;
+  choices: Map<number, BattleChoice>;
   turnEndsAt: number | null;
   turnTimer: Timer | null;
   timeouts: Map<number, number>;
   away: Map<number, { until: number; timer: Timer }>;
+  /** Spectating socket id → user */
+  spectators: Map<string, OnlineUser>;
+  chat: ChatMessage[];
+  chatModes: Map<number, ChatMode>;
 };
+
+/** Used when a player runs out of time */
+const FIRST_MOVE: BattleChoice = { kind: "move", index: 0 };
 
 const challenges = new Map<string, PendingChallenge>();
 const battles = new Map<string, LiveBattle>();
+const recentChats = new Map<number, number[]>();
 
 // ---------- Challenges ----------
 
@@ -65,15 +79,80 @@ function appendLog(live: LiveBattle, line: string) {
   live.battle = { ...live.battle, log: [...live.battle.log, line].slice(-40) };
 }
 
-function sendState(io: AppServer, live: LiveBattle) {
-  const chosen = new Set(live.choices.keys());
-  const timing = {
-    turnEndsAt: live.turnEndsAt,
-    awayUntil: new Map([...live.away].map(([userId, entry]) => [userId, entry.until])),
+function spectatorCount(live: LiveBattle): number {
+  return new Set([...live.spectators.values()].map((user) => user.id)).size;
+}
+
+function viewInputs(live: LiveBattle) {
+  return {
+    chosen: new Set(live.choices.keys()),
+    timing: {
+      turnEndsAt: live.turnEndsAt,
+      awayUntil: new Map([...live.away].map(([userId, entry]) => [userId, entry.until])),
+    },
+    extras: { chatModes: live.chatModes, spectators: spectatorCount(live) },
   };
+}
+
+function spectatorStateOf(live: LiveBattle): SpectatorView {
+  const { chosen, timing, extras } = viewInputs(live);
+  return spectatorView(live.battle, chosen, timing, extras);
+}
+
+function sendState(io: AppServer, live: LiveBattle) {
+  const { chosen, timing, extras } = viewInputs(live);
   for (const side of live.battle.sides) {
-    io.to(userRoom(side.userId)).emit("battle:state", viewFor(live.battle, side.userId, chosen, timing));
+    io.to(userRoom(side.userId)).emit("battle:state", viewFor(live.battle, side.userId, chosen, timing, extras));
   }
+  io.to(watchRoom(live.battle.id)).emit("battle:spectate-state", spectatorStateOf(live));
+}
+
+function isPlayer(live: LiveBattle, userId: number): boolean {
+  return live.battle.sides.some((side) => side.userId === userId);
+}
+
+function playerIds(live: LiveBattle): number[] {
+  return live.battle.sides.map((side) => side.userId);
+}
+
+function visibleChat(live: LiveBattle, viewerId: number): ChatMessage[] {
+  return live.chat.filter((message) => canSeeChat(message, viewerId, playerIds(live), live.chatModes));
+}
+
+function sendChatHistory(io: AppServer, live: LiveBattle, userId: number) {
+  io.to(userRoom(userId)).emit("battle:chat-history", {
+    battleId: live.battle.id,
+    messages: visibleChat(live, userId),
+  });
+}
+
+export function liveBattles(): LiveBattleInfo[] {
+  return [...battles.values()]
+    .filter((live) => live.battle.winner === null)
+    .map((live) => {
+      const [a, b] = live.battle.sides;
+      return {
+        id: live.battle.id,
+        players: [
+          { id: a.userId, displayName: a.displayName },
+          { id: b.userId, displayName: b.displayName },
+        ],
+        ruleset: rulesetOf(live.battle.ruleset),
+        turn: live.battle.turn,
+        spectators: spectatorCount(live),
+      };
+    });
+}
+
+function broadcastBattles(io: AppServer) {
+  io.to("lobby").emit("lobby:battles", liveBattles());
+}
+
+function removeSpectator(io: AppServer, live: LiveBattle, socket: AppSocket) {
+  if (!live.spectators.delete(socket.id)) return;
+  socket.leave(watchRoom(live.battle.id));
+  sendState(io, live);
+  broadcastBattles(io);
 }
 
 function activeBattleOf(userId: number): LiveBattle | undefined {
@@ -104,26 +183,49 @@ function startTurnTimer(io: AppServer, live: LiveBattle) {
   live.turnTimer = setTimeout(() => onTurnTimeout(io, live), TURN_LIMIT_MS);
 }
 
-function stopBattle(live: LiveBattle) {
+function stopBattle(io: AppServer, live: LiveBattle) {
   clearTurnTimer(live);
   for (const entry of live.away.values()) clearTimeout(entry.timer);
   live.away.clear();
-  setTimeout(() => battles.delete(live.battle.id), FINISHED_BATTLE_LIFETIME_MS);
+  broadcastBattles(io);
+  setTimeout(() => {
+    battles.delete(live.battle.id);
+    io.in(watchRoom(live.battle.id)).socketsLeave(watchRoom(live.battle.id));
+  }, FINISHED_BATTLE_LIFETIME_MS);
 }
 
 function endBattle(io: AppServer, live: LiveBattle, winnerId: number, line: string) {
   live.battle = { ...live.battle, winner: winnerId };
   appendLog(live, line);
   live.choices.clear();
-  stopBattle(live);
+  stopBattle(io, live);
   sendState(io, live);
 }
 
+/** Players who still have to decide: both in a normal turn, only those replacing a fainted Pokémon otherwise */
+function deciders(live: LiveBattle): BattleSide[] {
+  const { replacing } = live.battle;
+  return live.battle.sides.filter((_, index) => !replacing || replacing[index]);
+}
+
+function everyoneDecided(live: LiveBattle): boolean {
+  return deciders(live).every((side) => live.choices.has(side.userId));
+}
+
 function resolveAndAdvance(io: AppServer, live: LiveBattle) {
-  const [first, second] = live.battle.sides.map((side) => live.choices.get(side.userId) ?? 0);
-  live.battle = resolveTurn(live.battle, [first, second], Math.random);
+  const { replacing } = live.battle;
+  if (replacing) {
+    const [first, second] = live.battle.sides.map((side, index) => {
+      const choice = live.choices.get(side.userId);
+      return replacing[index] && choice?.kind === "switch" ? choice.index : null;
+    });
+    live.battle = resolveReplacements(live.battle, [first, second]);
+  } else {
+    const [first, second] = live.battle.sides.map((side) => live.choices.get(side.userId) ?? FIRST_MOVE);
+    live.battle = resolveTurn(live.battle, [first, second], Math.random);
+  }
   live.choices.clear();
-  if (live.battle.winner !== null) stopBattle(live);
+  if (live.battle.winner !== null) stopBattle(io, live);
   else startTurnTimer(io, live);
   sendState(io, live);
 }
@@ -132,7 +234,7 @@ function onTurnTimeout(io: AppServer, live: LiveBattle) {
   live.turnTimer = null;
   live.turnEndsAt = null;
 
-  for (const side of live.battle.sides) {
+  for (const side of deciders(live)) {
     if (live.choices.has(side.userId)) continue;
     const count = (live.timeouts.get(side.userId) ?? 0) + 1;
     live.timeouts.set(side.userId, count);
@@ -148,8 +250,13 @@ function onTurnTimeout(io: AppServer, live: LiveBattle) {
       return;
     }
 
-    appendLog(live, `${side.displayName} ran out of time, so their Pokémon used its first move.`);
-    live.choices.set(side.userId, 0);
+    if (live.battle.replacing) {
+      appendLog(live, `${side.displayName} ran out of time, so their next Pokémon was picked for them.`);
+      live.choices.set(side.userId, { kind: "switch", index: healthyBench(side)[0] });
+    } else {
+      appendLog(live, `${side.displayName} ran out of time, so their Pokémon used its first move.`);
+      live.choices.set(side.userId, FIRST_MOVE);
+    }
   }
 
   resolveAndAdvance(io, live);
@@ -197,15 +304,19 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
   } else if (current) {
     sendState(io, current);
   }
+  if (current) {
+    socket.emit("battle:chat-history", { battleId: current.battle.id, messages: visibleChat(current, me.id) });
+  }
 
   socket.on("battle:challenge", (input, reply) =>
     respond(reply, async () => {
-      const { toUserId, teamId } = battleChallengeInputSchema.parse(input);
+      const { toUserId, teamId, rulesetId } = battleChallengeInputSchema.parse(input);
+      const ruleset = rulesetOf(rulesetId);
       if (toUserId === me.id) throw new HttpError(400, "You can't battle yourself");
       const opponent = onlineUser(toUserId);
       if (!opponent) throw new HttpError(400, "That trainer is no longer online");
 
-      const fromTeam = await loadCombatants(me.id, teamId);
+      const fromTeam = await loadCombatants(me.id, teamId, ruleset);
 
       if (isBusy(me.id)) throw new HttpError(409, "Finish your current challenge or battle first");
       if (isBusy(toUserId)) throw new HttpError(409, `${opponent.displayName} is busy right now`);
@@ -214,6 +325,7 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
         id: randomUUID(),
         from: me,
         to: opponent,
+        ruleset,
         expiresAt: new Date(Date.now() + CHALLENGE_LIFETIME_MS).toISOString(),
       };
       const challenge: PendingChallenge = {
@@ -251,7 +363,7 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
       }
       if (teamId === undefined) throw new HttpError(400, "Choose a team to battle with");
 
-      const myTeam = await loadCombatants(me.id, teamId);
+      const myTeam = await loadCombatants(me.id, teamId, challenge.info.ruleset);
 
       if (challenges.get(challengeId) !== challenge) {
         throw new HttpError(404, "This challenge is no longer available");
@@ -262,9 +374,13 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
       const live: LiveBattle = {
         battle: {
           id: randomUUID(),
+          ruleset: challenge.info.ruleset.id,
           turn: 0,
           winner: null,
-          log: [`${challenger.displayName} and ${me.displayName} start a battle!`],
+          log: [
+            `${challenger.displayName} and ${me.displayName} start a battle!`,
+            `Rules: ${challenge.info.ruleset.name}. ${challenge.info.ruleset.description}`,
+          ],
           sides: [
             { userId: challenger.id, displayName: challenger.displayName, team: challenge.fromTeam, active: 0 },
             { userId: me.id, displayName: me.displayName, team: myTeam, active: 0 },
@@ -275,8 +391,12 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
         turnTimer: null,
         timeouts: new Map(),
         away: new Map(),
+        spectators: new Map(),
+        chat: [],
+        chatModes: new Map(),
       };
       battles.set(live.battle.id, live);
+      broadcastBattles(io);
 
       io.to(userRoom(challenger.id))
         .to(userRoom(me.id))
@@ -287,21 +407,29 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
     })
   );
 
-  socket.on("battle:move", (input, reply) =>
+  socket.on("battle:action", (input, reply) =>
     respond(reply, async () => {
-      const { battleId, moveIndex } = battleMoveInputSchema.parse(input);
+      const { battleId, choice } = battleActionInputSchema.parse(input);
       const live = battles.get(battleId);
       const side = live?.battle.sides.find((s) => s.userId === me.id);
       if (!live || !side) throw new HttpError(404, "This battle isn't available");
       if (live.battle.winner !== null) throw new HttpError(409, "The battle is over");
-      if (live.choices.has(me.id)) throw new HttpError(409, "You've already chosen a move this turn");
-      if (moveIndex >= side.team[side.active].moves.length) {
-        throw new HttpError(400, "That move doesn't exist");
+      if (live.choices.has(me.id)) throw new HttpError(409, "You've already chosen what to do this turn");
+      if (live.battle.replacing) {
+        if (!deciders(live).includes(side)) {
+          throw new HttpError(409, "Wait for your opponent to send out their next Pokémon");
+        }
+        if (choice.kind !== "switch") throw new HttpError(400, "Choose a Pokémon to send in");
+        const error = replacementError(side, choice.index);
+        if (error) throw new HttpError(400, error);
+      } else {
+        const error = choiceError(side, choice);
+        if (error) throw new HttpError(400, error);
       }
 
-      live.choices.set(me.id, moveIndex);
+      live.choices.set(me.id, choice);
       live.timeouts.set(me.id, 0);
-      if (live.choices.size === 2) resolveAndAdvance(io, live);
+      if (everyoneDecided(live)) resolveAndAdvance(io, live);
       else sendState(io, live);
       return null;
     })
@@ -316,4 +444,89 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
     const opponent = otherSide(live, me.id);
     endBattle(io, live, opponent.userId, `${me.displayName} forfeited. ${opponent.displayName} wins the battle!`);
   });
+
+  // ---------- Spectators ----------
+
+  socket.on("lobby:battles", (reply) => {
+    if (typeof reply === "function") reply(liveBattles());
+  });
+
+  socket.on("battle:watch", (input, reply) =>
+    respond(reply, async () => {
+      const { battleId } = battleIdInputSchema.parse(input);
+      const live = battles.get(battleId);
+      if (!live) throw new HttpError(404, "This battle is over or doesn't exist");
+      if (isPlayer(live, me.id)) throw new HttpError(409, "You're playing in this battle");
+
+      live.spectators.set(socket.id, me);
+      socket.join(watchRoom(battleId));
+      sendState(io, live);
+      broadcastBattles(io);
+      return { view: spectatorStateOf(live), chat: visibleChat(live, me.id) };
+    })
+  );
+
+  socket.on("battle:unwatch", (input) => {
+    const parsed = battleIdInputSchema.safeParse(input);
+    const live = parsed.success ? battles.get(parsed.data.battleId) : undefined;
+    if (live) removeSpectator(io, live, socket);
+  });
+
+  socket.on("disconnect", () => {
+    for (const live of battles.values()) removeSpectator(io, live, socket);
+  });
+
+  // ---------- Chat ----------
+
+  socket.on("battle:chat", (input, reply) =>
+    respond(reply, async () => {
+      const { battleId, text } = battleChatInputSchema.parse(input);
+      const live = battles.get(battleId);
+      if (!live) throw new HttpError(404, "This battle isn't available");
+
+      const player = isPlayer(live, me.id);
+      const watching = [...live.spectators.values()].some((user) => user.id === me.id);
+      if (!player && !watching) throw new HttpError(403, "Watch the battle to chat");
+
+      const now = Date.now();
+      const recent = (recentChats.get(me.id) ?? []).filter((time) => now - time < CHAT_WINDOW_MS);
+      if (recent.length >= CHAT_BURST) {
+        throw new HttpError(429, "You're sending messages too quickly");
+      }
+      recentChats.set(me.id, [...recent, now]);
+
+      const message: ChatMessage = {
+        id: randomUUID(),
+        battleId,
+        from: me,
+        role: player ? "player" : "spectator",
+        text,
+        sentAt: new Date(now).toISOString(),
+      };
+      live.chat = [...live.chat, message].slice(-CHAT_HISTORY);
+
+      const players = playerIds(live);
+      const rooms = [
+        watchRoom(battleId),
+        ...players
+          .filter((userId) => canSeeChat(message, userId, players, live.chatModes))
+          .map((userId) => userRoom(userId)),
+      ];
+      io.to(rooms).emit("battle:chat-message", message);
+      return null;
+    })
+  );
+
+  socket.on("battle:chat-mode", (input, reply) =>
+    respond(reply, async () => {
+      const { battleId, mode } = battleChatModeInputSchema.parse(input);
+      const live = battles.get(battleId);
+      if (!live || !isPlayer(live, me.id)) throw new HttpError(404, "This battle isn't available");
+
+      live.chatModes.set(me.id, mode);
+      sendChatHistory(io, live, me.id);
+      sendState(io, live);
+      return null;
+    })
+  );
 }

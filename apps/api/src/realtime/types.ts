@@ -20,3 +20,6 @@ export type AppSocket = Socket<
 export function userRoom(userId: number): string {
   return `user:${userId}`;
 }
+export function watchRoom(battleId: string): string {
+  return `battle:${battleId}:watch`;
+}

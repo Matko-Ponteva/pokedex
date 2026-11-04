@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { useCurrentUser } from "../hooks/useAuth";
-import { useOnlineUsers, useSocketConnected } from "../realtime/useSocket";
+import { useLiveBattles, useOnlineUsers, useSocketConnected } from "../realtime/useSocket";
 import { useTradeState } from "../realtime/tradeStore";
 import { useBattleState } from "../realtime/battleStore";
 import { IncomingTradeCard, OfferForm, OutgoingTradeCard } from "../components/TradeCards";
@@ -12,6 +13,7 @@ export function LobbyPage() {
   const { data: me } = useCurrentUser();
   const connected = useSocketConnected();
   const users = useOnlineUsers();
+  const liveBattles = useLiveBattles();
   const { trades, notices: tradeNotices } = useTradeState();
   const { challenges, notices: battleNotices } = useBattleState();
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -62,6 +64,30 @@ export function LobbyPage() {
           <h2>Sent by you</h2>
           {outgoingChallenge && <OutgoingChallengeCard challenge={outgoingChallenge} />}
           {outgoingOffer && <OutgoingTradeCard offer={outgoingOffer} />}
+        </section>
+      )}
+
+      {liveBattles.length > 0 && (
+        <section>
+          <h2>Live battles</h2>
+          <ul className="live-battles">
+            {liveBattles.map((live) => {
+              const playing = live.players.some((player) => player.id === me?.id);
+              return (
+                <li key={live.id}>
+                  <span className="online-name">
+                    {live.players[0].displayName} <span className="muted">vs</span> {live.players[1].displayName}
+                  </span>
+                  <span className="muted">
+                    {live.ruleset.name} · Turn {live.turn + 1} · {live.spectators === 1 ? "1 spectator" : `${live.spectators} spectators`}
+                  </span>
+                  <Link className="button" to={playing ? `/battle/${live.id}` : `/battle/${live.id}/watch`}>
+                    {playing ? "Return" : "Watch"}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 

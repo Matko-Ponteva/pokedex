@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { PokemonSummary } from "./index.ts";
 import type { BattleView, SpectatorView } from "./battle.ts";
 import { CHAT_MAX_LENGTH, type ChatMessage } from "./chat.ts";
 import { DEFAULT_RULESET, rulesetIdSchema, type Ruleset } from "./rulesets.ts";

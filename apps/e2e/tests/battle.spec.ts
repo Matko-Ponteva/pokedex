@@ -30,7 +30,7 @@ test("two trainers battle while a spectator watches and chats", async ({ browser
   await brockRow.getByLabel("Battle with").selectOption({ label: "Battle team (1 Pokémon)" });
   await brockRow.getByRole("button", { name: "Send challenge" }).click();
 
-  const incoming = brock.page.locator(".trade-card.incoming");
+  const incoming = brock.page.locator(".request-card.incoming");
   await expect(incoming.getByText("All Pokémon are set to level 50.")).toBeVisible();
   await incoming.getByRole("combobox").selectOption({ label: "Battle team (1 Pokémon)" });
   await incoming.getByRole("button", { name: "Accept" }).click();

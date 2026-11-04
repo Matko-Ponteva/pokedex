@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useCurrentUser } from "../hooks/useAuth";
-import { useOnlineUsers, useSocketConnected } from "../realtime/useSocket";
 import { useLiveBattles, useOnlineUsers, useSocketConnected } from "../realtime/useSocket";
-import { useTradeState } from "../realtime/tradeStore";
 import { useBattleState } from "../realtime/battleStore";
 import { ChallengeForm, IncomingChallengeCard, OutgoingChallengeCard } from "../components/ChallengeCards";
 
@@ -14,9 +12,6 @@ export function LobbyPage() {
   const { challenges, notices } = useBattleState();
   const [openUserId, setOpenUserId] = useState<number | null>(null);
   const liveBattles = useLiveBattles();
-  const { trades, notices: tradeNotices } = useTradeState();
-  const { challenges, notices: battleNotices } = useBattleState();
-  const [panel, setPanel] = useState<Panel | null>(null);
 
   const incomingChallenges = challenges.filter((c) => c.to.id === me?.id);
   const outgoingChallenge = challenges.find((c) => c.from.id === me?.id);

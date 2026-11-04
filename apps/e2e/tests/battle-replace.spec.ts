@@ -23,7 +23,7 @@ test("a trainer chooses their next Pokémon after one faints", async ({ browser,
   await brockRow.getByRole("button", { name: "Challenge" }).click();
   await brockRow.getByLabel("Battle with").selectOption({ label: "Replace team (1 Pokémon)" });
   await brockRow.getByRole("button", { name: "Send challenge" }).click();
-  const incoming = brock.page.locator(".trade-card.incoming");
+  const incoming = brock.page.locator(".request-card.incoming");
   await incoming.getByRole("combobox").selectOption({ label: "Replace team (3 Pokémon)" });
   await incoming.getByRole("button", { name: "Accept" }).click();
   await expect(brock.page).toHaveURL(/\/battle\//);

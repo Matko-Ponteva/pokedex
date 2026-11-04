@@ -117,57 +117,6 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
   const canSwitch = ready && (!replacePhase || battle.mustReplace);
   const choosingReplacement = battle.mustReplace && !battle.hasChosen && !playback.playing;
 
-      {!finished && (
-        <section>
-          <h2>Your moves</h2>
-          <div className="battle-moves">
-            {mine.moves.map((move, index) => (
-              <button
-                key={move.name}
-                type="button"
-                className="battle-move"
-                disabled={battle.hasChosen || sending}
-                onClick={() => choose(index)}
-              >
-                <span>{formatMove(move.name)}</span>
-                <span className="battle-move-info">
-                  <TypeBadge type={move.type} /> power {move.power ?? "none"}
-                </span>
-              </button>
-            ))}
-          </div>
-          {error && <p className="form-error" role="alert">{error}</p>}
-        </section>
-      )}
-
-      <section>
-        <h2>Your team</h2>
-        <ul className="bench">
-          {battle.me.team.map((combatant, index) => (
-            <li key={index} className={combatant.hp === 0 ? "fainted" : undefined}>
-              <img src={combatant.spriteUrl} alt="" width={40} height={40} />
-              <span>{formatPokemonName(combatant.name)}</span>
-              <HpBar hp={combatant.hp} maxHp={combatant.maxHp} />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2>Battle log</h2>
-        <ol className="battle-log">
-          {[...battle.log].reverse().map((line, index) => (
-            <li key={index}>{line}</li>
-          ))}
-        </ol>
-      </section>
-
-      <div className="request-actions">
-        {finished ? (
-          <Link to="/lobby" className="button">
-            Back to the lobby
-          </Link>
-        ) : (
   const banner = !playback.playing && finished
     ? battle.winner === battle.me.userId ? "Victory!" : "Defeat"
     : null;

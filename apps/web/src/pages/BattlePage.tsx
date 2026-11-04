@@ -173,7 +173,7 @@ export function BattlePage() {
         </ol>
       </section>
 
-      <div className="trade-actions">
+      <div className="request-actions">
         {finished ? (
           <Link to="/lobby" className="button">
             Back to the lobby

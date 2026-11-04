@@ -1,27 +1,22 @@
 import { Link, NavLink, Outlet } from "react-router";
 import { useCurrentUser, useLogOut } from "../hooks/useAuth";
 import { useSocketConnection, useSocketConnected } from "../realtime/useSocket";
-import { useTradeState, useTradeSync } from "../realtime/tradeStore";
 import { useBattleNavigation, useBattleState } from "../realtime/battleStore";
 
 export function AppLayout() {
   useSocketConnection();
   const connected = useSocketConnected();
   const { data: user } = useCurrentUser();
-  useTradeSync();
-  const { trades } = useTradeState();
-  const waitingOffers = trades.filter((trade) => trade.to.id === user?.id).length;
   useBattleNavigation();
   const { challenges } = useBattleState();
-  const waitingChallenges = challenges.filter((c) => c.to.id === user?.id).length;
-  const waiting = waitingOffers + waitingChallenges;
+  const waiting = challenges.filter((c) => c.to.id === user?.id).length;
   const logOut = useLogOut();
 
   return (
     <>
           {user && !connected && (
         <div className="connection-banner" role="status">
-          Connecting to the server… Trades and battles resume automatically.
+          Connecting to the server… Battles resume automatically.
         </div>
       )}
       <header className="app-header">

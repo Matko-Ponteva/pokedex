@@ -128,14 +128,11 @@ button.danger { background: #c62828; }
 .online-row { display: flex; align-items: center; gap: 8px; }
 .online-name { flex: 1; }
 .online-row button { padding: 4px 12px; font-size: 14px; }
-.trade-card { background: #fff; border-radius: 12px; padding: 12px 16px; margin: 8px 0 12px; border: 1px solid #e2e4ec; }
-.trade-card.incoming { border-color: #4058c8; }
-.trade-pokemon { display: flex; align-items: center; gap: 12px; }
-.trade-pokemon p { margin: 0; }
-.trade-actions { display: flex; gap: 8px; margin-top: 12px; }
+.request-card { background: #fff; border-radius: 12px; padding: 12px 16px; margin: 8px 0 12px; border: 1px solid #e2e4ec; }
+.request-card.incoming { border-color: #4058c8; }
+.request-actions { display: flex; gap: 8px; margin-top: 12px; }
 .notices { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 6px; }
 .notices li { background: #eef0f6; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
-.notices li.done { background: #d7f0dc; color: #1b5e20; }
 .nav-count { display: inline-block; margin-left: 6px; min-width: 20px; padding: 0 6px; border-radius: 999px; background: #c62828; color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
 .online-row button + button { margin-left: 4px; }
 .battle-status { font-weight: 700; font-size: 18px; }

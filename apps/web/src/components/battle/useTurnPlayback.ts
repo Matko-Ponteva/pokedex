@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { BattleEvent, ShownCombatant, TurnRecord } from "@pokedex/shared";
+import type { BattleEvent, FieldState, ShownCombatant, TurnRecord, Weather } from "@pokedex/shared";
 
 type Pair<T> = [T, T];
 
@@ -17,6 +17,20 @@ const DURATION: Record<BattleEvent["kind"], number> = {
   heal: 1000,
   recoil: 950,
   fail: 850,
+  protect: 950,
+  info: 900,
+  weather: 1200,
+  "weather-damage": 1050,
+  field: 1150,
+  substitute: 1000,
+  seeded: 950,
+  leech: 1000,
+  "hazard-damage": 1000,
+  haze: 1000,
+  volatile: 1000,
+  ability: 1100,
+  item: 1000,
+  hurt: 1000,
   faint: 1150,
   withdraw: 750,
   switch: 950,
@@ -34,6 +48,10 @@ export type Playback = {
   playing: boolean;
   /** The battle log without the lines that haven't played yet */
   log: string[];
+  /** The weather as currently shown */
+  weather: Weather | null;
+  /** Side conditions, hazards, terrain and field effects as currently shown */
+  field: FieldState | null;
 };
 
 function applyEvent(sides: Pair<ShownCombatant>, down: Pair<boolean>, event: BattleEvent) {
@@ -41,6 +59,10 @@ function applyEvent(sides: Pair<ShownCombatant>, down: Pair<boolean>, event: Bat
   switch (event.kind) {
     case "damage":
     case "status-damage":
+    case "weather-damage":
+    case "leech":
+    case "hazard-damage":
+    case "hurt":
     case "heal":
     case "recoil":
       sides[side] = { ...sides[side], hp: event.hp };
@@ -65,6 +87,19 @@ function applyEvent(sides: Pair<ShownCombatant>, down: Pair<boolean>, event: Bat
       sides[side] = event.combatant;
       down[side] = false;
       break;
+    case "substitute":
+      sides[side] = { ...sides[side], hp: event.hp, substitute: event.active };
+      break;
+    case "seeded":
+      sides[side] = { ...sides[side], seeded: event.seeded };
+      break;
+    case "volatile":
+      sides[side] = event.combatant;
+      break;
+    case "haze":
+      sides[0] = { ...sides[0], boosts: {} };
+      sides[1] = { ...sides[1], boosts: {} };
+      break;
   }
 }
 
@@ -86,8 +121,10 @@ export function useTurnPlayback(input: {
   lastTurn: TurnRecord | null;
   log: string[];
   final: Pair<ShownCombatant>;
+  finalWeather: Weather | null;
+  finalField: FieldState | null;
 }): Playback {
-  const { lastTurn, log, final } = input;
+  const { lastTurn, log, final, finalWeather, finalField } = input;
   const seq = lastTurn?.seq ?? 0;
   // Which step we've caught up with, and where the replay is. Starting the replay while
   // rendering (not in an effect) avoids a frame that shows the turn's result too early.
@@ -121,12 +158,20 @@ export function useTurnPlayback(input: {
       eventKey: "idle",
       playing: false,
       log,
+      weather: finalWeather,
+      field: finalField,
     };
   }
 
   const sides: Pair<ShownCombatant> = [...lastTurn.start];
   const down: Pair<boolean> = [sides[0].hp === 0, sides[1].hp === 0];
-  for (const played of lastTurn.events.slice(0, active.step + 1)) applyEvent(sides, down, played);
+  let weather = lastTurn.weather ?? null;
+  let field = lastTurn.field ?? null;
+  for (const played of lastTurn.events.slice(0, active.step + 1)) {
+    applyEvent(sides, down, played);
+    if (played.kind === "weather") weather = played.weather;
+    if (played.kind === "field") field = played.field;
+  }
 
   // Hide the log lines of events that haven't played yet
   const texts = lastTurn.events.map((e) => e.text);
@@ -141,5 +186,7 @@ export function useTurnPlayback(input: {
     eventKey: `${seq}-${active.step}`,
     playing: true,
     log: shownLog,
+    weather,
+    field,
   };
 }

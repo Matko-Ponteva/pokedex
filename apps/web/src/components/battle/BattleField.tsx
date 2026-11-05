@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  BOOST_STATS, battleSprites,
-  type BattleEvent, type BoostStat, type ShownCombatant, type SideIndex, type StatusCondition,
+  BOOST_STATS, FIELD_EFFECT_NAMES, abilityName, itemName, HAZARD_NAMES, SIDE_CONDITION_NAMES, TERRAIN_NAMES, WEATHER_NAMES, battleSprites,
+  type BattleEvent, type BoostStat, type FieldEffect, type FieldState, type Hazard, type ShownCombatant, type SideCondition,
+  type SideField, type SideIndex, type StatusCondition, type Weather,
 } from "@pokedex/shared";
 import { formatPokemonName } from "../../lib/format";
 
@@ -139,6 +140,21 @@ function floatsFor(event: BattleEvent): Float[] {
       return [{ text: { burn: "Burned!", poison: "Poisoned!", paralysis: "Paralyzed!", sleep: "Fell asleep!", freeze: "Frozen!" }[event.status], tone: `cond-${event.status}` }];
     case "status-damage":
       return [{ text: `-${event.amount}`, tone: `damage cond-${event.status}` }];
+    case "weather-damage":
+    case "leech":
+    case "hazard-damage":
+    case "hurt":
+      return [{ text: `-${event.amount}`, tone: "damage" }];
+    case "volatile":
+      return event.float ? [{ text: event.float, tone: "weak" }] : [];
+    case "ability":
+      return event.ability ? [{ text: `[${abilityName(event.ability)}]`, tone: "ability" }] : [];
+    case "item":
+      return event.item ? [{ text: itemName(event.item), tone: "item" }] : [];
+    case "substitute":
+      return [{ text: event.active ? "Substitute!" : "Substitute broke!", tone: "protect" }];
+    case "seeded":
+      return event.seeded ? [{ text: "Seeded!", tone: "heal" }] : [];
     case "cant-move":
       return [{ text: { burn: "", poison: "", paralysis: "Can't move!", sleep: "Zzz…", freeze: "Frozen solid!" }[event.status], tone: `cond-${event.status}` }];
     case "cured":
@@ -157,6 +173,8 @@ function floatsFor(event: BattleEvent): Float[] {
       return [{ text: `-${event.amount}`, tone: "damage" }, { text: "Recoil", tone: "weak" }];
     case "fail":
       return [{ text: "Failed!", tone: "miss" }];
+    case "protect":
+      return [{ text: event.blocked ? "Blocked!" : "Protected!", tone: "protect" }];
     default:
       return [];
   }
@@ -188,7 +206,17 @@ function animationFor(event: BattleEvent | null, position: Position, eventPositi
     case "heal":
       return "anim-heal";
     case "recoil":
+    case "weather-damage":
+    case "leech":
+    case "hazard-damage":
+    case "hurt":
       return "anim-hit";
+    case "substitute":
+      return "anim-protect";
+    case "haze":
+      return "anim-cured";
+    case "protect":
+      return "anim-protect";
     default:
       return "";
   }
@@ -216,10 +244,39 @@ function PartyBalls({ party }: { party: boolean[] }) {
   );
 }
 
-function InfoBox({ field, position }: { field: FieldSide; position: Position }) {
+/** A side's conditions (with turns left) and hazards (with layers) */
+function SideChips({ sideField }: { sideField: SideField | undefined }) {
+  if (!sideField) return null;
+  const conditions = Object.entries(sideField.conditions) as [SideCondition, number][];
+  const hazards = Object.entries(sideField.hazards) as [Hazard, number][];
+  if (conditions.length === 0 && hazards.length === 0) return null;
+  return (
+    <span className="side-chips">
+      {conditions.map(([condition, turns]) => (
+        <span key={condition} className="side-chip condition" title={`${turns} turn${turns === 1 ? "" : "s"} left`}>
+          {SIDE_CONDITION_NAMES[condition]} {turns}
+        </span>
+      ))}
+      {hazards.map(([hazard, layers]) => (
+        <span key={hazard} className="side-chip hazard">
+          {HAZARD_NAMES[hazard]}
+          {layers > 1 ? ` ×${layers}` : ""}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function InfoBox({ field, position, sideField }: { field: FieldSide; position: Position; sideField?: SideField }) {
   const { combatant } = field;
-  // An empty spot while the trainer picks the next Pokémon
-  if (field.down) return null;
+  // The side's conditions stay visible while the trainer picks the next Pokémon
+  if (field.down) {
+    return sideField && (Object.keys(sideField.conditions).length > 0 || Object.keys(sideField.hazards).length > 0) ? (
+      <div className={`info-box info-${position} info-empty`}>
+        <SideChips sideField={sideField} />
+      </div>
+    ) : null;
+  }
   return (
     <div className={`info-box info-${position}`}>
       <div className="info-trainer">
@@ -227,12 +284,31 @@ function InfoBox({ field, position }: { field: FieldSide; position: Position }) 
         <PartyBalls party={field.party} />
       </div>
       <div className="info-name">
-        <strong>{formatPokemonName(combatant.name)}</strong>
+        <strong>
+          {formatPokemonName(combatant.name)}
+          {combatant.gender && (
+            <span className={`gender ${combatant.gender}`} aria-label={combatant.gender}>
+              {combatant.gender === "female" ? " ♀" : " ♂"}
+            </span>
+          )}
+        </strong>
         <StatusPill status={combatant.status} />
         <span className="info-level">Lv{combatant.level}</span>
       </div>
       <HpBar hp={combatant.hp} maxHp={combatant.maxHp} showNumbers={field.showHpNumbers} />
       <BoostChips boosts={combatant.boosts} />
+      {(combatant.substitute || combatant.seeded || (combatant.tags?.length ?? 0) > 0) && (
+        <span className="side-chips">
+          {combatant.substitute && <span className="side-chip substitute">Substitute</span>}
+          {combatant.seeded && <span className="side-chip seeded">Seeded</span>}
+          {combatant.tags?.map((tag) => (
+            <span key={tag} className="side-chip volatile">
+              {tag}
+            </span>
+          ))}
+        </span>
+      )}
+      <SideChips sideField={sideField} />
     </div>
   );
 }
@@ -261,7 +337,7 @@ function Slot({
       <div className="platform" />
       <div
         key={animation ? eventKey : "still"}
-        className={`sprite-holder ${animation} ${field.down && !leaving ? "down" : ""} ${combatant.status ? `cond-${combatant.status}` : ""}`}
+        className={`sprite-holder ${animation} ${field.down && !leaving ? "down" : ""} ${combatant.status ? `cond-${combatant.status}` : ""} ${combatant.substitute ? "behind-sub" : ""}`}
       >
         <BattleSprite key={combatant.spriteUrl} spriteUrl={combatant.spriteUrl} position={position} name={combatant.name} />
       </div>
@@ -293,12 +369,19 @@ export function BattleField({
   event,
   eventKey,
   banner,
+  weather = null,
+  weatherTurns = null,
+  field = null,
 }: {
   top: FieldSide;
   bottom: FieldSide;
   event: BattleEvent | null;
   eventKey: string;
   banner?: string | null;
+  weather?: Weather | null;
+  /** Turns of weather left, shown when known */
+  weatherTurns?: number | null;
+  field?: FieldState | null;
 }) {
   const arena = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -313,6 +396,9 @@ export function BattleField({
   }, []);
 
   const shake = event?.kind === "damage" && (event.critical || event.effectiveness > 1);
+  const terrain = field?.terrain ?? null;
+  // Fairy Lock is shown through the switching message instead
+  const effects = (Object.entries(field?.effects ?? {}) as [FieldEffect, number][]).filter(([effect]) => effect !== "fairy-lock");
 
   return (
     <div ref={arena} className="arena">
@@ -322,8 +408,30 @@ export function BattleField({
           <Slot field={bottom} position="bottom" event={event} eventKey={eventKey} />
         </div>
       </div>
-      <InfoBox field={top} position="top" />
-      <InfoBox field={bottom} position="bottom" />
+      {terrain && <div key={terrain.kind} className={`terrain-fx terrain-${terrain.kind}`} aria-hidden="true" />}
+      {weather && <div key={weather} className={`weather-fx weather-${weather}`} aria-hidden="true" />}
+      {(weather || terrain || effects.length > 0) && (
+        <div className="field-chips">
+          {weather && (
+            <p className="weather-chip">
+              {WEATHER_NAMES[weather]}
+              {weatherTurns ? ` · ${weatherTurns} turn${weatherTurns === 1 ? "" : "s"} left` : ""}
+            </p>
+          )}
+          {terrain && (
+            <p className={`weather-chip terrain-chip-${terrain.kind}`}>
+              {TERRAIN_NAMES[terrain.kind]} · {terrain.turnsLeft}
+            </p>
+          )}
+          {effects.map(([effect, turns]) => (
+            <p key={effect} className="weather-chip">
+              {FIELD_EFFECT_NAMES[effect]} · {turns}
+            </p>
+          ))}
+        </div>
+      )}
+      <InfoBox field={top} position="top" sideField={field?.sides[top.side]} />
+      <InfoBox field={bottom} position="bottom" sideField={field?.sides[bottom.side]} />
       {banner && <p className="arena-banner">{banner}</p>}
     </div>
   );

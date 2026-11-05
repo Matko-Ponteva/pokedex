@@ -39,8 +39,11 @@ export async function listPokemon({ search, type, page, pageSize }: ListOptions)
   return { items, page, pageSize, total, hasMore: page * pageSize < total };
 }
 
-/** Bump when fetchPokemonDetail changes what it returns, so cached rows get refetched (2: level-up moves only) */
-const DETAIL_CACHE_VERSION = 2;
+/**
+ * Bump when fetchPokemonDetail changes what it returns, so cached rows get refetched
+ * (2: level-up moves only, 3: gender rate, 4: TM and egg moves too, with how each is learned, 5: tutor moves too)
+ */
+const DETAIL_CACHE_VERSION = 5;
 
 export async function getPokemon(id: number): Promise<PokemonDetail> {
   const [row] = await db.select().from(pokemonDetails).where(eq(pokemonDetails.id, id));

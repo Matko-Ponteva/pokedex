@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import {
   battleChallengeInputSchema, battleChatInputSchema, battleChatModeInputSchema, battleForfeitInputSchema,
   battleActionInputSchema, battleIdInputSchema, battleRespondInputSchema,
-  canSeeChat, choiceError, healthyBench, replacementError, resolveReplacements, resolveTurn, rulesetOf, spectatorView, viewFor,
-  type Battle, type BattleChoice, type BattleSide, type ChallengeInfo, type ChatMessage, type ChatMode, type Combatant,
+  canSeeChat, choiceError, defaultChoice, healthyBench, replacementError, resolveReplacements, resolveTurn, rulesetOf, spectatorView, viewFor,
+  type Battle, type BattleChoice, type BattleSide, type SideIndex, type ChallengeInfo, type ChatMessage, type ChatMode, type Combatant,
   type LiveBattleInfo, type OnlineUser, type SpectatorView,
 } from "@pokedex/shared";
 import { HttpError } from "../lib/errors.ts";
@@ -44,7 +44,6 @@ type LiveBattle = {
 };
 
 /** Used when a player runs out of time */
-const FIRST_MOVE: BattleChoice = { kind: "move", index: 0 };
 
 const challenges = new Map<string, PendingChallenge>();
 const battles = new Map<string, LiveBattle>();
@@ -221,7 +220,9 @@ function resolveAndAdvance(io: AppServer, live: LiveBattle) {
     });
     live.battle = resolveReplacements(live.battle, [first, second]);
   } else {
-    const [first, second] = live.battle.sides.map((side) => live.choices.get(side.userId) ?? FIRST_MOVE);
+    const [first, second] = live.battle.sides.map(
+      (side, index) => live.choices.get(side.userId) ?? defaultChoice(live.battle, index as SideIndex)
+    );
     live.battle = resolveTurn(live.battle, [first, second], Math.random);
   }
   live.choices.clear();
@@ -254,8 +255,8 @@ function onTurnTimeout(io: AppServer, live: LiveBattle) {
       appendLog(live, `${side.displayName} ran out of time, so their next Pokémon was picked for them.`);
       live.choices.set(side.userId, { kind: "switch", index: healthyBench(side)[0] });
     } else {
-      appendLog(live, `${side.displayName} ran out of time, so their Pokémon used its first move.`);
-      live.choices.set(side.userId, FIRST_MOVE);
+      appendLog(live, `${side.displayName} ran out of time, so their Pokémon used its first usable move.`);
+      live.choices.set(side.userId, defaultChoice(live.battle, live.battle.sides.indexOf(side) as SideIndex));
     }
   }
 
@@ -423,7 +424,7 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
         const error = replacementError(side, choice.index);
         if (error) throw new HttpError(400, error);
       } else {
-        const error = choiceError(side, choice);
+        const error = choiceError(live.battle, live.battle.sides.indexOf(side) as SideIndex, choice);
         if (error) throw new HttpError(400, error);
       }
 

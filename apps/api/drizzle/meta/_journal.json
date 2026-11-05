@@ -64,6 +64,34 @@
       "when": 1793791543162,
       "tag": "0008_needy_mordo",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793872024593,
+      "tag": "0009_move_priority",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793875294677,
+      "tag": "0010_move_pp_and_effects",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793881248409,
+      "tag": "0011_member_ability_item_nature",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793881826767,
+      "tag": "0012_move_hit_counts",
+      "breakpoints": true
     }
   ]
 }

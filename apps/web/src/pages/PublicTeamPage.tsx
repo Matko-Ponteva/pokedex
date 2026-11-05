@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router";
+import { abilityName, itemName, natureLabel } from "@pokedex/shared";
 import { TypeBadge } from "../components/TypeBadge";
 import { TeamAnalysis } from "../components/TeamAnalysis";
 import { usePublicTeam } from "../hooks/useTeams";
@@ -40,6 +41,15 @@ export function PublicTeamPage() {
                 </div>
               </div>
             </Link>
+            <p className="member-build">
+              {[
+                member.ability && abilityName(member.ability),
+                member.item && itemName(member.item),
+                member.nature && natureLabel(member.nature),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
             {member.moves.length > 0 && (
               <ul className="move-list">
                 {member.moves.map((move) => (

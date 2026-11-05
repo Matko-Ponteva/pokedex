@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
-import type {
-  LikeState, PokemonDetail,
-  PublicTeam, PublicTeamListResponse, PublicTeamSort, Team, TeamInput,
+import {
+  abilitySlug,
+  type LikeState, type PokemonDetail,
+  type PublicTeam, type PublicTeamListResponse, type PublicTeamSort, type Team, type TeamInput,
 } from "@pokedex/shared";
 import { encodeCursor, type TeamCursor } from "../lib/cursor.ts";
 import { db } from "../db/client.ts";
@@ -20,6 +21,9 @@ async function withMembers(teamRows: TeamRow[]): Promise<Team[]> {
       teamId: teamMembers.teamId,
       slot: teamMembers.slot,
       moves: teamMembers.moves,
+      ability: teamMembers.ability,
+      item: teamMembers.item,
+      nature: teamMembers.nature,
       pokemon,
     })
     .from(teamMembers)
@@ -36,7 +40,7 @@ async function withMembers(teamRows: TeamRow[]): Promise<Team[]> {
     updatedAt: team.updatedAt.toISOString(),
     members: memberRows
       .filter((m) => m.teamId === team.id)
-      .map((m) => ({ slot: m.slot, pokemon: m.pokemon, moves: m.moves })),
+      .map((m) => ({ slot: m.slot, pokemon: m.pokemon, moves: m.moves, ability: m.ability, item: m.item, nature: m.nature })),
   }));
 }
 
@@ -49,7 +53,7 @@ async function findOwnedTeam(userId: number, teamId: number): Promise<TeamRow> {
   return team;
 }
 
-/** Throws if the Pokémon can't learn one of the moves (only level-up moves are allowed) */
+/** Throws if the Pokémon can't learn one of the moves (by leveling up, from a TM, by breeding or from a tutor) */
 export function assertLearnableMoves(detail: PokemonDetail, moves: readonly string[], hint = "") {
   const invalid = moves.find((move) => !detail.moves.includes(move));
   if (invalid) {
@@ -70,7 +74,11 @@ async function validateMembers(input: TeamInput) {
 
   for (const member of input.members) {
     const detail = detailsById.get(member.pokemonId);
-    if (detail) assertLearnableMoves(detail, member.moves);
+    if (!detail) continue;
+    assertLearnableMoves(detail, member.moves);
+    if (member.ability && !detail.abilities.some((ability) => abilitySlug(ability.name) === member.ability)) {
+      throw new HttpError(400, `${detail.name} can't have the ability ${member.ability.replaceAll("-", " ")}`);
+    }
   }
 }
 
@@ -80,6 +88,9 @@ function memberRows(teamId: number, input: TeamInput) {
     slot: index + 1,
     pokemonId: m.pokemonId,
     moves: m.moves,
+    ability: m.ability ?? null,
+    item: m.item ?? null,
+    nature: m.nature ?? null,
   }));
 }
 

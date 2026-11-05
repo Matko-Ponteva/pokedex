@@ -64,6 +64,9 @@ button.danger { background: #c62828; }
 .member-header { display: flex; gap: 12px; align-items: center; }
 .member-header h3 { margin: 0 0 4px; }
 .move-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.build-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 12px 0 0; }
+.member-build { margin: 6px 0 0; font-size: 13px; color: #6b7088; }
+.bench-build { font-size: 11px; color: #6b7088; }
 .move-select { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #6b7088; }
 .move-select select { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #ccd; border-radius: 8px; color: #1a1d29; background: #fff; }
 .move-select select.invalid { border-color: #c62828; box-shadow: 0 0 0 1px #c62828; }
@@ -221,6 +224,79 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
   text-shadow: 0 3px 0 #1f2540, 0 0 18px rgba(31, 37, 64, 0.5); animation: banner-pop 0.6s ease-out both;
 }
 
+/* Weather: a tinted, moving overlay over the field, and a label in the corner */
+.weather-fx { position: absolute; inset: 0; pointer-events: none; animation: weather-in 0.8s ease-out both; }
+.weather-rain {
+  background:
+    repeating-linear-gradient(105deg, transparent 0 22px, rgba(255, 255, 255, 0.45) 22px 23px, transparent 23px 46px),
+    linear-gradient(rgba(38, 66, 120, 0.32), rgba(38, 66, 120, 0.18));
+  background-size: 92px 92px, auto;
+  animation: weather-in 0.8s ease-out both, rain-fall 0.45s linear infinite;
+}
+.weather-sun {
+  background:
+    radial-gradient(circle at 88% 6%, rgba(255, 226, 120, 0.85), rgba(255, 196, 60, 0.35) 22%, transparent 50%),
+    rgba(255, 170, 50, 0.14);
+  animation: weather-in 0.8s ease-out both, sun-pulse 2.6s ease-in-out infinite alternate;
+}
+.weather-sand {
+  background:
+    repeating-linear-gradient(172deg, transparent 0 9px, rgba(150, 104, 44, 0.32) 9px 11px, transparent 11px 30px),
+    rgba(196, 150, 82, 0.34);
+  background-size: 140px 60px, auto;
+  animation: weather-in 0.8s ease-out both, sand-blow 0.6s linear infinite;
+}
+.weather-hail, .weather-snow {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 1.5px, transparent 2.5px),
+    rgba(200, 225, 245, 0.22);
+  background-size: 70px 70px, 45px 45px, auto;
+  background-position: 0 0, 20px 30px, 0 0;
+}
+.weather-hail { animation: weather-in 0.8s ease-out both, hail-fall 0.7s linear infinite; }
+.weather-snow { animation: weather-in 0.8s ease-out both, snow-fall 2.4s linear infinite; }
+.field-chips { position: absolute; top: 3%; right: 3%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.weather-chip {
+  margin: 0; padding: 2px 10px; border-radius: 999px;
+  background: rgba(31, 37, 64, 0.78); color: #fff; font-size: clamp(10px, 1.7cqw, 13px); font-weight: 700;
+}
+.terrain-chip-electric { background: rgba(176, 132, 0, 0.9); }
+.terrain-chip-grassy { background: rgba(46, 125, 50, 0.9); }
+.terrain-chip-misty { background: rgba(194, 24, 91, 0.85); }
+.terrain-chip-psychic { background: rgba(106, 27, 154, 0.88); }
+/* Terrain tints the ground */
+.terrain-fx { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; pointer-events: none; animation: weather-in 0.8s ease-out both; }
+.terrain-electric { background: linear-gradient(transparent, rgba(255, 214, 0, 0.35)); }
+.terrain-grassy { background: linear-gradient(transparent, rgba(56, 142, 60, 0.4)); }
+.terrain-misty { background: linear-gradient(transparent, rgba(244, 143, 177, 0.45)); }
+.terrain-psychic { background: linear-gradient(transparent, rgba(171, 71, 188, 0.4)); }
+/* Side conditions, hazards, Substitute and Leech Seed in the info boxes */
+.side-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.side-chip { font-size: 0.72em; font-weight: 800; border-radius: 4px; padding: 0 5px; }
+.side-chip.condition { background: #e3f2fd; color: #0d47a1; }
+.side-chip.hazard { background: #fbe9e7; color: #a6361b; }
+.side-chip.substitute { background: #ede7f6; color: #4527a0; }
+.side-chip.seeded { background: #e8f5e9; color: #1b5e20; }
+.side-chip.volatile { background: #fff3e0; color: #8a4b00; }
+.gender { font-weight: 800; }
+.gender.male { color: #1e63c4; }
+.gender.female { color: #c2185b; }
+.battle-move.locked { opacity: 0.55; }
+.battle-move.pending { outline: 3px solid #5c6bc0; outline-offset: 1px; }
+.battle-move-lock { font-size: 12px; font-weight: 700; color: #b3261e; }
+.move-pp { font-variant-numeric: tabular-nums; }
+.move-pp.empty { color: #b3261e; font-weight: 700; }
+.battle-note { margin: 6px 0 0; font-size: 13px; color: #6b7088; }
+.info-box.info-empty { background: rgba(255, 255, 255, 0.8); }
+.sprite-holder.behind-sub .battle-sprite { opacity: 0.55; filter: drop-shadow(0 0 6px #b388ff); }
+@keyframes weather-in { from { opacity: 0; } }
+@keyframes rain-fall { to { background-position: -24px 92px, 0 0; } }
+@keyframes sun-pulse { to { filter: brightness(1.12); } }
+@keyframes sand-blow { to { background-position: 140px 12px, 0 0; } }
+@keyframes hail-fall { to { background-position: -10px 70px, 12px 75px, 0 0; } }
+@keyframes snow-fall { to { background-position: 14px 70px, 6px 75px, 0 0; } }
+
 /* Floating text */
 .floats { position: absolute; left: 0; width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; z-index: 2; }
 .slot-top .floats { bottom: 95px; }
@@ -245,6 +321,9 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 .float.cured, .float.heal { color: #69f0ae; }
 .float.heal { font-size: 40px; }
 .float.stat-up { color: #64b5f6; }
+.float.protect { color: #b388ff; }
+.float.ability { color: #ffe082; font-size: 26px; }
+.float.item { color: #a5d6a7; font-size: 24px; }
 .float.stat-down { color: #ff8a80; }
 .boosts { display: flex; flex-wrap: wrap; gap: 3px; }
 .boost { font-size: 0.72em; font-weight: 800; border-radius: 4px; padding: 0 5px; }
@@ -278,6 +357,7 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 .anim-stat-up { animation: stat-up 0.9s ease-in-out; }
 .anim-stat-down { animation: stat-down 0.9s ease-in-out; }
 .anim-heal { animation: heal-glow 0.9s ease-in-out; }
+.anim-protect { animation: protect-shield 0.9s ease-in-out; }
 .anim-cured { animation: glow 0.7s ease-in-out; }
 .anim-status.anim-burn { animation: burn-flicker 0.9s ease-in-out; }
 .anim-status.anim-poison { animation: poison-pulse 0.9s ease-in-out; }
@@ -298,6 +378,7 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 @keyframes withdraw { 40% { filter: brightness(3) sepia(1) saturate(8) hue-rotate(-30deg); } to { transform: scale(0.05) translateY(-40px); opacity: 0; filter: brightness(3); } }
 @keyframes stat-up { 30%, 70% { filter: drop-shadow(0 0 10px #42a5f5) brightness(1.25); transform: translateY(-6px); } }
 @keyframes stat-down { 30%, 70% { filter: drop-shadow(0 0 10px #ef5350) brightness(0.8); transform: translateY(4px) scale(0.97); } }
+@keyframes protect-shield { 30%, 70% { filter: drop-shadow(0 0 16px #b388ff) brightness(1.25); transform: scale(1.04); } }
 @keyframes heal-glow { 40%, 60% { filter: drop-shadow(0 0 14px #66bb6a) brightness(1.3); } }
 @keyframes fall-straight { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(130px); opacity: 0; } }
 @keyframes glow { 50% { filter: brightness(1.8) drop-shadow(0 0 12px #fff); } }
@@ -403,7 +484,7 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hp-fill { transition: none; }
-  .sprite-holder, .shaker, .status-fx span, .arena-banner, .battle-move { animation: none !important; transition: none; }
+  .sprite-holder, .shaker, .status-fx span, .arena-banner, .battle-move, .weather-fx, .terrain-fx { animation: none !important; transition: none; }
   .anim-faint, .anim-withdraw { opacity: 0; }
   .float { animation: fade-out 1.2s both; }
 }

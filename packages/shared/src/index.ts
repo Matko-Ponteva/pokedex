@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { PokemonType } from "./pokemonTypes.ts";
+import { isHeldItem } from "./items.ts";
+import { isNature } from "./natures.ts";
 
 export * from "./pokemonTypes.ts";
 export * from "./typeChart.ts";
@@ -7,6 +9,13 @@ export * from "./defense.ts";
 export * from "./offense.ts";
 export * from "./realtime.ts";
 export * from "./battle.ts";
+export * from "./specialMoves.ts";
+export * from "./weather.ts";
+export * from "./field.ts";
+export * from "./statusMoves.ts";
+export * from "./abilities.ts";
+export * from "./items.ts";
+export * from "./natures.ts";
 export * from "./chat.ts";
 export * from "./rulesets.ts";
 
@@ -35,13 +44,33 @@ export type PokemonDetail = {
   types: PokemonType[];
   heightMeters: number;
   weightKg: number;
+  /** Chance of being female in eighths, or -1 for a genderless species */
+  genderRate?: number;
   description: string | null;
   artworkUrl: string;
   stats: { name: string; value: number }[];
   abilities: { name: string; hidden: boolean }[];
   evolution: EvolutionStage[];
+  /** Moves it can learn by leveling up, from a TM, by breeding, or from a move tutor */
   moves: string[];
+  /** How it learns each move, in the order of LEARN_METHODS */
+  learnMethods?: Record<string, LearnMethod[]>;
 };
+
+/** Ways a Pokémon can learn moves in this app */
+export const LEARN_METHODS = ["level-up", "machine", "egg", "tutor"] as const;
+export type LearnMethod = (typeof LEARN_METHODS)[number];
+
+export const LEARN_METHOD_NAMES: Record<LearnMethod, string> = {
+  "level-up": "Level up",
+  machine: "TM",
+  egg: "Egg move",
+  tutor: "Move tutor",
+};
+
+export function isLearnMethod(value: string): value is LearnMethod {
+  return (LEARN_METHODS as readonly string[]).includes(value);
+}
 
 export type ApiError = {
   error: string;
@@ -95,6 +124,25 @@ export const teamMemberInputSchema = z.object({
     .array(moveNameSchema)
     .max(4, "A Pokémon can know at most 4 moves")
     .refine((moves) => new Set(moves).size === moves.length, "Each move can only be chosen once"),
+  /** One of the Pokémon's abilities (checked against its abilities when saving); none means its first one */
+  ability: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(40)
+    .regex(/^[a-z0-9-]+$/, "Ability names use lowercase letters, digits and hyphens")
+    .nullable()
+    .default(null),
+  item: z
+    .string()
+    .nullable()
+    .default(null)
+    .refine((item) => item === null || isHeldItem(item), "That item can't be held in battle"),
+  nature: z
+    .string()
+    .nullable()
+    .default(null)
+    .refine((nature) => nature === null || isNature(nature), "That nature doesn't exist"),
 });
 
 export const teamInputSchema = z.object({
@@ -113,6 +161,11 @@ export type TeamMember = {
   slot: number;
   pokemon: PokemonSummary;
   moves: string[];
+  /** Ability slug; null means the Pokémon's first regular ability */
+  ability: string | null;
+  item: string | null;
+  /** Null means a neutral nature */
+  nature: string | null;
 };
 
 export type Team = {

@@ -1,6 +1,6 @@
 import { HttpError } from "./errors.ts";
 import {
-  POKEMON_TYPES, isBoostStat, isStatusCondition, type EvolutionStage, type StatChange, type MoveCategory, type MoveInfo,
+  POKEMON_TYPES, LEARN_METHODS, isBoostStat, isStatusCondition, type LearnMethod, type EvolutionStage, type StatChange, type MoveCategory, type MoveInfo,
   type PokemonDetail, type PokemonSummary, type PokemonType,
 } from "@pokedex/shared";
 
@@ -24,6 +24,8 @@ type RawPokemon = {
   moves: { move: NamedResource; version_group_details: { move_learn_method: NamedResource }[] }[];
 };
 type RawSpecies = {
+  name: string;
+  gender_rate: number;
   evolution_chain: { url: string } | null;
   flavor_text_entries: { flavor_text: string; language: NamedResource }[];
 };
@@ -33,6 +35,8 @@ type RawMove = {
   name: string;
   power: number | null;
   accuracy: number | null;
+  priority: number;
+  pp: number | null;
   type: NamedResource;
   damage_class: NamedResource;
   target: NamedResource;
@@ -45,6 +49,9 @@ type RawMove = {
     stat_chance: number;
     healing: number;
     drain: number;
+    flinch_chance: number;
+    min_hits: number | null;
+    max_hits: number | null;
   } | null;
 };
 
@@ -97,10 +104,20 @@ export async function fetchPokemonDetail(id: number): Promise<PokemonDetail> {
   const species = await fetchJson<RawSpecies>(pokemon.species.url);
 
   let evolution: EvolutionStage[] = [];
+  // Egg moves are listed on the Pokémon that hatches; an evolved Pokémon keeps the ones it learned back then
+  let inheritedEggMoves: string[] = [];
   if (species.evolution_chain) {
     const chain = await fetchJson<RawEvolutionChain>(species.evolution_chain.url);
     evolution = toStages(chain.chain);
-    
+    const earlier = ancestorsOf(chain.chain, species.name) ?? [];
+    const ancestors = await Promise.all(
+      earlier.map((link) => fetchJson<RawPokemon>(`${BASE_URL}/pokemon/${idFromUrl(link.species.url)}`))
+    );
+    inheritedEggMoves = ancestors.flatMap((ancestor) =>
+      ancestor.moves
+        .filter((m) => m.version_group_details.some((d) => d.move_learn_method.name === "egg"))
+        .map((m) => m.move.name)
+    );
   }
 
   const flavor = species.flavor_text_entries.find((e) => e.language.name === "en");
@@ -111,6 +128,7 @@ export async function fetchPokemonDetail(id: number): Promise<PokemonDetail> {
     types: pokemon.types.map((t) => t.type.name as PokemonType),
     heightMeters: pokemon.height / 10,
     weightKg: pokemon.weight / 10,
+    genderRate: species.gender_rate,
     description: flavor ? flavor.flavor_text.replace(/[\f\n]/g, " ") : null,
     artworkUrl: artworkUrl(pokemon.id),
     stats: pokemon.stats.map((s) => ({ name: s.stat.name, value: s.base_stat })),
@@ -119,12 +137,37 @@ export async function fetchPokemonDetail(id: number): Promise<PokemonDetail> {
       hidden: a.is_hidden,
     })),
     evolution,
-    // Only moves learned by leveling up in some game, not TMs, tutors or egg moves
-    moves: pokemon.moves
-      .filter((m) => m.version_group_details.some((d) => d.move_learn_method.name === "level-up"))
-      .map((m) => m.move.name)
-      .sort(),
+    ...learnset(pokemon.moves, inheritedEggMoves),
   };
+}
+
+/** Moves learned by leveling up, from a TM, by breeding or from a move tutor in some game */
+function learnset(moves: RawPokemon["moves"], inheritedEggMoves: string[]): Pick<PokemonDetail, "moves" | "learnMethods"> {
+  const methodsByMove = new Map<string, Set<string>>();
+  for (const { move, version_group_details } of moves) {
+    methodsByMove.set(move.name, new Set(version_group_details.map((d) => d.move_learn_method.name)));
+  }
+  for (const move of inheritedEggMoves) {
+    const methods = methodsByMove.get(move) ?? new Set<string>();
+    methods.add("egg");
+    methodsByMove.set(move, methods);
+  }
+  const learnMethods: Record<string, LearnMethod[]> = {};
+  for (const [move, methods] of methodsByMove) {
+    const learned = LEARN_METHODS.filter((method) => methods.has(method));
+    if (learned.length > 0) learnMethods[move] = learned;
+  }
+  return { moves: Object.keys(learnMethods).sort(), learnMethods };
+}
+
+/** The earlier stages of a species in its evolution chain, from the first one, or null when it isn't in the chain */
+function ancestorsOf(link: RawChainLink, name: string): RawChainLink[] | null {
+  if (link.species.name === name) return [];
+  for (const next of link.evolves_to) {
+    const path = ancestorsOf(next, name);
+    if (path) return [link, ...path];
+  }
+  return null;
 }
 
 function toStages(root: RawChainLink): EvolutionStage[] {
@@ -140,6 +183,19 @@ function toStages(root: RawChainLink): EvolutionStage[] {
     current = current.flatMap((link) => link.evolves_to);
   }
   return stages;
+}
+
+/** PokéAPI's ailments that aren't a major status condition, like confusion or trapping */
+function volatileOf(ailment: string | undefined): string | null {
+  if (!ailment || ailment === "none" || ailment === "unknown" || isStatusCondition(ailment)) return null;
+  return ailment;
+}
+
+/** Every move name, for picking Metronome's moves */
+let moveNames: string[] | null = null;
+export async function fetchMoveNames(): Promise<string[]> {
+  moveNames ??= (await fetchJson<RawList>(`${BASE_URL}/move?limit=2000`)).results.map((move) => move.name);
+  return moveNames;
 }
 
 export async function fetchMove(name: string): Promise<MoveInfo> {
@@ -161,5 +217,11 @@ export async function fetchMove(name: string): Promise<MoveInfo> {
     statChance: move.meta?.stat_chance ?? 0,
     healing: move.meta?.healing ?? 0,
     drain: move.meta?.drain ?? 0,
+    priority: move.priority ?? 0,
+    pp: move.pp,
+    volatile: volatileOf(move.meta?.ailment.name),
+    flinchChance: move.meta?.flinch_chance ?? 0,
+    minHits: move.meta?.min_hits ?? null,
+    maxHits: move.meta?.max_hits ?? null,
   };
 }

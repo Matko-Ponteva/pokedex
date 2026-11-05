@@ -35,8 +35,8 @@ export function CoverageGrid({ team, combinations }: Props) {
     );
   }
 
-  const singleTypes = analyzeCoverage(team, SINGLE_TYPE_TARGETS);
-  const allPokemon = combinations ? analyzeCoverage(team, combinations) : [];
+  const singleTypes = analyzeCoverage(team, SINGLE_TYPE_TARGETS, { stab: false });
+  const allPokemon = combinations ? analyzeCoverage(team, combinations, { stab: false }) : [];
   const summary = summarizeCoverage(allPokemon);
   const hardest = coverageGaps(allPokemon).slice(0, 10);
 
@@ -44,8 +44,7 @@ export function CoverageGrid({ team, combinations }: Props) {
     <section className="analysis">
       <h2>Offensive coverage</h2>
       <p className="muted">
-        Multipliers include the 1.5× STAB bonus for moves that match their user's type. Status
-        moves don't count.
+        Multipliers show plain type effectiveness, without the STAB bonus. Status moves don't count.
       </p>
 
       {summary.total > 0 && (

@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import type {
-  LikeState,
+  LikeState, PokemonDetail,
   PublicTeam, PublicTeamListResponse, PublicTeamSort, Team, TeamInput,
 } from "@pokedex/shared";
 import { encodeCursor, type TeamCursor } from "../lib/cursor.ts";
@@ -49,6 +49,14 @@ async function findOwnedTeam(userId: number, teamId: number): Promise<TeamRow> {
   return team;
 }
 
+/** Throws if the Pokémon can't learn one of the moves (only level-up moves are allowed) */
+export function assertLearnableMoves(detail: PokemonDetail, moves: readonly string[], hint = "") {
+  const invalid = moves.find((move) => !detail.moves.includes(move));
+  if (invalid) {
+    throw new HttpError(400, `${detail.name} can't learn ${invalid.replaceAll("-", " ")}${hint}`);
+  }
+}
+
 async function validateMembers(input: TeamInput) {
   const ids = [...new Set(input.members.map((m) => m.pokemonId))];
   if (ids.length === 0) return;
@@ -62,11 +70,7 @@ async function validateMembers(input: TeamInput) {
 
   for (const member of input.members) {
     const detail = detailsById.get(member.pokemonId);
-    if (!detail) continue;
-    const invalid = member.moves.find((move) => !detail.moves.includes(move));
-    if (invalid) {
-      throw new HttpError(400, `${detail.name} can't learn ${invalid.replaceAll("-", " ")}`);
-    }
+    if (detail) assertLearnableMoves(detail, member.moves);
   }
 }
 

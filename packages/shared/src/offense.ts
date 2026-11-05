@@ -72,18 +72,25 @@ export const SINGLE_TYPE_TARGETS: CoverageTarget[] = POKEMON_TYPES.map((type) =>
   count: 1,
 }));
 
+export type CoverageOptions = {
+  /** Apply the STAB bonus for moves that match their user's type (default true) */
+  stab?: boolean;
+};
+
 export function damageMultiplier(
   move: MoveInfo,
   attackerTypes: readonly PokemonType[],
-  defendTypes: readonly PokemonType[]
+  defendTypes: readonly PokemonType[],
+  { stab = true }: CoverageOptions = {}
 ): number {
-  const stab = attackerTypes.includes(move.type) ? STAB_BONUS : 1;
-  return effectivenessAgainst(move.type, defendTypes) * stab;
+  const bonus = stab && attackerTypes.includes(move.type) ? STAB_BONUS : 1;
+  return effectivenessAgainst(move.type, defendTypes) * bonus;
 }
 
 export function analyzeCoverage(
   team: readonly Attacker[],
-  targets: readonly CoverageTarget[]
+  targets: readonly CoverageTarget[],
+  options: CoverageOptions = {}
 ): CoverageEntry[] {
   const attacks = team.flatMap((member) =>
     member.moves
@@ -95,7 +102,7 @@ export function analyzeCoverage(
     let best = 0;
     let bestMoves: string[] = [];
     for (const { move, attackerTypes } of attacks) {
-      const multiplier = damageMultiplier(move, attackerTypes, target.types);
+      const multiplier = damageMultiplier(move, attackerTypes, target.types, options);
       if (multiplier > best) {
         best = multiplier;
         bestMoves = [move.name];

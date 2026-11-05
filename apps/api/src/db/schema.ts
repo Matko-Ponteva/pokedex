@@ -11,7 +11,8 @@ export const pokemon = pgTable("pokemon", {
 
 export const pokemonDetails = pgTable("pokemon_details", {
   id: integer("id").primaryKey(),
-  data: jsonb("data").$type<PokemonDetail>().notNull(),
+  // cacheVersion marks rows saved after a change to how details are built; older rows are refetched
+  data: jsonb("data").$type<PokemonDetail & { cacheVersion?: number }>().notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

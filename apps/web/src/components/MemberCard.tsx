@@ -47,15 +47,21 @@ export function MemberCard({
       <div className="move-grid">
         {MOVE_SLOTS.map((i) => {
           const info = moves[i] ? moveInfo?.get(moves[i]) : undefined;
+          const invalid = Boolean(detail && moves[i] && !detail.moves.includes(moves[i]));
           return (
             <label key={i} className="move-select">
               <span>Move {i + 1}</span>
               <select
+                className={invalid ? "invalid" : undefined}
+                aria-invalid={invalid}
                 value={moves[i] ?? ""}
                 disabled={isPending || isError || i > moves.length}
                 onChange={(e) => setMove(i, e.target.value)}
               >
                 <option value="">None</option>
+                {invalid && (
+                  <option value={moves[i]}>{formatMove(moves[i])} (not learned by leveling)</option>
+                )}
                 {detail?.moves.map((move) => (
                   <option key={move} value={move} disabled={moves.includes(move) && moves[i] !== move}>
                     {formatMove(move)}

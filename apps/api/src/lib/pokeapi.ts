@@ -21,7 +21,7 @@ type RawPokemon = {
   stats: { base_stat: number; stat: NamedResource }[];
   abilities: { is_hidden: boolean; ability: NamedResource }[];
   species: NamedResource;
-  moves: { move: NamedResource }[];
+  moves: { move: NamedResource; version_group_details: { move_learn_method: NamedResource }[] }[];
 };
 type RawSpecies = {
   evolution_chain: { url: string } | null;
@@ -120,7 +120,11 @@ export async function fetchPokemonDetail(id: number): Promise<PokemonDetail> {
       hidden: a.is_hidden,
     })),
     evolution,
-    moves: pokemon.moves.map((m) => m.move.name).sort(),
+    // Only moves learned by leveling up in some game, not TMs, tutors or egg moves
+    moves: pokemon.moves
+      .filter((m) => m.version_group_details.some((d) => d.move_learn_method.name === "level-up"))
+      .map((m) => m.move.name)
+      .sort(),
   };
 }
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import { STAT_NAMES, shown, type BattleChoice, type BattleView, type MoveInfo, type ShownCombatant } from "@pokedex/shared";
+import { PROTECT_MOVES, STAT_NAMES, fieldMoveNote, hasStatusEffect, specialMoveNote, weatherMoveNote, shown, type BattleChoice, type BattleView, type MoveInfo, type ShownCombatant } from "@pokedex/shared";
 import { TypeBadge } from "../components/TypeBadge";
 import { BattleField, HpBar, StatusPill } from "../components/battle/BattleField";
 import { BattleSidebar } from "../components/battle/BattleSidebar";
@@ -21,6 +21,12 @@ const AILMENT_LABELS = { burn: "Burns", poison: "Poisons", paralysis: "Paralyzes
 /** A short summary of what a move does besides damage */
 function moveEffect(move: MoveInfo): string | null {
   const parts: string[] = [];
+  const priority = move.priority ?? 0;
+  if (priority !== 0) parts.push(`Priority ${priority > 0 ? "+" : ""}${priority}`);
+  const note = specialMoveNote(move) ?? weatherMoveNote(move) ?? fieldMoveNote(move);
+  if (note) parts.push(note);
+  if (move.category === "status" && !hasStatusEffect(move)) parts.push("No effect in battles yet");
+  if (PROTECT_MOVES.has(move.name)) parts.push("Blocks the foe's move");
   if (move.ailment) {
     const chance = move.category === "status" || !move.ailmentChance ? "" : ` (${move.ailmentChance}%)`;
     parts.push(`${AILMENT_LABELS[move.ailment]}${chance}`);
@@ -30,7 +36,8 @@ function moveEffect(move: MoveInfo): string | null {
     const chance = move.category !== "status" && move.statChance ? ` ${move.statChance}%` : "";
     parts.push(`${change > 0 ? "+" : ""}${change} ${STAT_NAMES[stat]}${who}${chance}`);
   }
-  if (move.healing) parts.push(`Heals ${move.healing}%`);
+  // Swallow's healing depends on Stockpile, which its note covers
+  if (move.healing && move.name !== "swallow") parts.push(`Heals ${move.healing}%`);
   if (move.drain && move.drain > 0) parts.push(`Drains ${move.drain}%`);
   if (move.drain && move.drain < 0) parts.push(`${-move.drain}% recoil`);
   return parts.length > 0 ? parts.join(" · ") : null;
@@ -68,9 +75,18 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
   const mySide = battle.mySide;
   const theirSide = mySide === 0 ? 1 : 0;
   const mine = battle.me.team[battle.me.active];
+  // Bide locks the Pokémon in until it hits back
+  const biding = Boolean(mine.bide) && mine.hp > 0;
+  const fairyLocked = Boolean(battle.field?.effects["fairy-lock"]);
   const final: [ShownCombatant, ShownCombatant] =
     mySide === 0 ? [shown(mine), battle.opponent.active] : [battle.opponent.active, shown(mine)];
-  const playback = useTurnPlayback({ lastTurn: battle.lastTurn, log: battle.log, final });
+  const playback = useTurnPlayback({
+    lastTurn: battle.lastTurn,
+    log: battle.log,
+    final,
+    finalWeather: battle.weather?.kind ?? null,
+    finalField: battle.field,
+  });
 
   const opponentName = battle.opponent.displayName;
   const finished = battle.winner !== null;
@@ -91,6 +107,8 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
           ? `Waiting for ${opponentName} to send out their next Pokémon…`
       : battle.hasChosen
         ? `Waiting for ${opponentName}…`
+        : biding
+          ? `${formatPokemonName(mine.name)} is storing energy! Pick any move to keep biding.`
         : battle.opponentHasChosen
           ? `${opponentName} has chosen. Your move!`
           : `What will ${formatPokemonName(mine.name)} do?`;
@@ -114,7 +132,7 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
   const ready = !finished && !battle.hasChosen && !sending && !playback.playing;
   // Moves need a normal turn; switching is also how you pick a replacement after a faint
   const canAct = ready && !replacePhase;
-  const canSwitch = ready && (!replacePhase || battle.mustReplace);
+  const canSwitch = ready && (replacePhase ? battle.mustReplace : !biding && !fairyLocked);
   const choosingReplacement = battle.mustReplace && !battle.hasChosen && !playback.playing;
 
   const banner = !playback.playing && finished
@@ -167,6 +185,9 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
             event={playback.event}
             eventKey={playback.eventKey}
             banner={banner}
+            weather={playback.weather}
+            weatherTurns={playback.playing ? null : battle.weather?.turnsLeft}
+            field={playback.field}
           />
 
           <div className="battle-command">
@@ -226,7 +247,19 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
               {choosingReplacement ? (
                 "Choose your next Pokémon"
               ) : (
-                <>Your team {!finished && <span className="muted">· Switching uses your turn</span>}</>
+                <>
+                  Your team{" "}
+                  {!finished && (
+                    <span className="muted">
+                      ·{" "}
+                      {biding
+                        ? "Can't switch while storing energy"
+                        : fairyLocked
+                          ? "Fairy Lock: no switching this turn"
+                          : "Switching uses your turn"}
+                    </span>
+                  )}
+                </>
               )}
             </h2>
             <ul className="bench">

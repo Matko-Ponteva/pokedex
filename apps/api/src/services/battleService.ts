@@ -22,6 +22,7 @@ export async function loadCombatants(userId: number, teamId: number, ruleset: Ru
       types: member.pokemon.types,
       level: ruleset.level,
       baseStats: details[index].stats,
+      weightKg: details[index].weightKg,
       moves: member.moves.flatMap((name) => {
         const move = movesByName.get(name);
         return move ? [move] : [];

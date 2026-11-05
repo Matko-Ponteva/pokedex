@@ -7,6 +7,9 @@ export * from "./defense.ts";
 export * from "./offense.ts";
 export * from "./realtime.ts";
 export * from "./battle.ts";
+export * from "./specialMoves.ts";
+export * from "./weather.ts";
+export * from "./field.ts";
 export * from "./chat.ts";
 export * from "./rulesets.ts";
 

@@ -51,7 +51,13 @@ function Spectating({ view }: { view: SpectatorView }) {
   const chat = useBattleChat(view.id);
   const now = useNow();
   const final: [ShownCombatant, ShownCombatant] = [view.sides[0].active, view.sides[1].active];
-  const playback = useTurnPlayback({ lastTurn: view.lastTurn, log: view.log, final });
+  const playback = useTurnPlayback({
+    lastTurn: view.lastTurn,
+    log: view.log,
+    final,
+    finalWeather: view.weather?.kind ?? null,
+    finalField: view.field,
+  });
 
   const [first, second] = view.sides;
   const finished = view.winner !== null;
@@ -110,6 +116,9 @@ function Spectating({ view }: { view: SpectatorView }) {
             event={playback.event}
             eventKey={playback.eventKey}
             banner={!playback.playing && finished ? `${winnerName ?? "Someone"} wins!` : null}
+            weather={playback.weather}
+            weatherTurns={playback.playing ? null : view.weather?.turnsLeft}
+            field={playback.field}
           />
           <div className="battle-command">
             <p className={finished ? "battle-status finished" : "battle-status"} role="status">

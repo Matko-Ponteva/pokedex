@@ -2,7 +2,7 @@ import type { DraftMember } from "../lib/teamDraft";
 import { usePokemon } from "../hooks/usePokemon";
 import { TypeBadge } from "./TypeBadge";
 import { formatMove } from "../lib/format";
-import type { MoveInfo } from "@pokedex/shared";
+import { ITEM_MOVES, hasStatusEffect, isUsableMove, type MoveInfo } from "@pokedex/shared";
 
 const MOVE_SLOTS = [0, 1, 2, 3];
 
@@ -67,7 +67,16 @@ export function MemberCard({
                   <TypeBadge type={info.type} />
                   {info.category}
                   {info.power !== null && `, power ${info.power}`}
+                  {(info.priority ?? 0) !== 0 && `, priority ${info.priority! > 0 ? "+" : ""}${info.priority}`}
                 </span>
+              )}
+              {info && !isUsableMove(info) && (
+                <span className="field-error">
+                  {ITEM_MOVES.has(info.name) ? "Needs a held item, which battles don't use" : "Not supported in battles yet"}
+                </span>
+              )}
+              {info && info.category === "status" && !hasStatusEffect(info) && (
+                <span className="field-error">Has no effect in battles yet</span>
               )}
             </label>
           );

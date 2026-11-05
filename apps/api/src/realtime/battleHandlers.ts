@@ -423,7 +423,7 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
         const error = replacementError(side, choice.index);
         if (error) throw new HttpError(400, error);
       } else {
-        const error = choiceError(side, choice);
+        const error = choiceError(side, choice, live.battle.field ?? null);
         if (error) throw new HttpError(400, error);
       }
 

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { MoveInfo } from "./offense.ts";
 import type { PokemonType } from "./pokemonTypes.ts";
+import { emptyField, type FieldState } from "./field.ts";
 import {
-  STRUGGLE, battleSprites, calculateDamage, choiceError, replacementError, resolveReplacements, createCombatant, resolveTurn, spectatorView, viewFor,
+  STRUGGLE, battleSprites, calculateDamage, choiceError, isUsableMove, replacementError, resolveReplacements, createCombatant, resolveTurn, spectatorView, viewFor,
   type Battle, type BattleChoice, type BattleStats, type Combatant,
 } from "./battle.ts";
 
@@ -85,18 +86,26 @@ describe("calculateDamage", () => {
 });
 
 describe("createCombatant", () => {
-  it("keeps status moves, and falls back to Struggle without usable moves", () => {
-    const growl: MoveInfo = { name: "growl", type: "normal", category: "status", power: null };
+  it("keeps Counter and fixed-damage moves", () => {
+    const counter: MoveInfo = { name: "counter", type: "fighting", category: "physical", power: null, priority: -5 };
     const seismicToss: MoveInfo = { name: "seismic-toss", type: "fighting", category: "physical", power: null };
     expect(
-      createCombatant({ name: "x", spriteUrl: "", types: ["normal"], baseStats: [], moves: [growl, seismicToss], level: 50 }).moves
+      createCombatant({ name: "primeape", spriteUrl: "", types: ["fighting"], baseStats: [], moves: [counter, seismicToss], level: 50 }).moves
+    ).toEqual([counter, seismicToss]);
+  });
+
+  it("keeps status moves, and falls back to Struggle without usable moves", () => {
+    const growl: MoveInfo = { name: "growl", type: "normal", category: "status", power: null };
+    const fling: MoveInfo = { name: "fling", type: "dark", category: "physical", power: null };
+    expect(
+      createCombatant({ name: "x", spriteUrl: "", types: ["normal"], baseStats: [], moves: [growl, fling], level: 50 }).moves
     ).toEqual([growl]);
     const combatant = createCombatant({
       name: "charizard",
       spriteUrl: "",
       types: ["fire", "flying"],
       baseStats: [{ name: "hp", value: 78 }],
-      moves: [seismicToss],
+      moves: [fling],
       level: 50,
     });
     expect(combatant.moves).toEqual([STRUGGLE]);
@@ -309,10 +318,10 @@ describe("status and stat moves", () => {
   const swordsDance: MoveInfo = { name: "swords-dance", type: "normal", category: "status", power: null, statChanges: [{ stat: "attack", change: 2 }], statTarget: "user" };
   const scaryFace: MoveInfo = { name: "scary-face", type: "normal", category: "status", power: null, accuracy: 100, statChanges: [{ stat: "speed", change: -2 }], statTarget: "target" };
   const recover: MoveInfo = { name: "recover", type: "normal", category: "status", power: null, healing: 50 };
-  const protect: MoveInfo = { name: "protect", type: "normal", category: "status", power: null };
+  const splash: MoveInfo = { name: "splash", type: "normal", category: "status", power: null };
 
   /** An opponent that does nothing */
-  const idle = () => ({ ...fighter(["water"]), moves: [protect] });
+  const idle = () => ({ ...fighter(["water"]), moves: [splash] });
 
   function user(moves: MoveInfo[], hp = 200) {
     const combatant = fighter(["water"], { speed: 150 }, hp);
@@ -367,7 +376,7 @@ describe("status and stat moves", () => {
   });
 
   it("says nothing happened for effects it doesn't support", () => {
-    const after = resolveTurn(battleOf([user([protect])], [idle()]), FIGHT, maxRoll);
+    const after = resolveTurn(battleOf([user([splash])], [idle()]), FIGHT, maxRoll);
     expect(after.lastTurn?.events[1]).toMatchObject({ kind: "fail", text: "But nothing happened!" });
   });
 
@@ -459,5 +468,541 @@ describe("replacing a fainted Pokémon", () => {
     expect(kinds(after)).toEqual(["move", "damage", "recoil", "faint", "move", "fail"]);
     expect(after.lastTurn?.events.at(-1)?.text).toBe("But there was no target!");
     expect(after.replacing).toEqual([true, false]);
+  });
+});
+
+describe("move priority and special moves", () => {
+  const quickAttack: MoveInfo = { ...hit, name: "quick-attack", power: 40, priority: 1 };
+  const counter: MoveInfo = { name: "counter", type: "fighting", category: "physical", power: null, priority: -5 };
+  const mirrorCoat: MoveInfo = { name: "mirror-coat", type: "psychic", category: "special", power: null, priority: -5 };
+  const seismicToss: MoveInfo = { name: "seismic-toss", type: "fighting", category: "physical", power: null };
+  const superFang: MoveInfo = { name: "super-fang", type: "normal", category: "physical", power: null };
+  const protect: MoveInfo = { name: "protect", type: "normal", category: "status", power: null, priority: 4 };
+
+  function knowing(moves: MoveInfo[], speed: number, types: PokemonType[] = ["water"]) {
+    const combatant = fighter(types, { speed });
+    combatant.moves = moves;
+    return combatant;
+  }
+
+  it("lets a higher priority move go first, even when slower", () => {
+    const after = resolveTurn(battleOf([knowing([quickAttack], 50)], [knowing([hit], 150)]), FIGHT, maxRoll);
+    expect(after.lastTurn?.events[0]).toMatchObject({ kind: "move", side: 0, move: "quick-attack" });
+  });
+
+  it("makes Counter go last and hit back for double the physical damage taken", () => {
+    const after = resolveTurn(battleOf([knowing([counter], 150)], [knowing([hit], 50)]), FIGHT, maxRoll);
+    expect(after.lastTurn?.events.map(({ kind, side }) => [kind, side])).toEqual([
+      ["move", 1], ["damage", 0], ["move", 0], ["damage", 1],
+    ]);
+    expect(after.lastTurn?.events[1]).toMatchObject({ amount: 46 });
+    expect(after.lastTurn?.events[3]).toMatchObject({ amount: 92, effectiveness: 1, critical: false });
+    expect(after.sides[1].team[0].hp).toBe(200 - 92);
+  });
+
+  it("fails Counter without a physical hit, and Mirror Coat without a special one", () => {
+    const noHit = resolveTurn(battleOf([knowing([counter], 150)], [knowing([blast], 50)]), FIGHT, maxRoll);
+    expect(noHit.lastTurn?.events.at(-1)).toMatchObject({ kind: "fail", side: 0 });
+
+    const coat = resolveTurn(battleOf([knowing([mirrorCoat], 150)], [knowing([blast], 50)]), FIGHT, maxRoll);
+    expect(coat.lastTurn?.events.at(-1)).toMatchObject({ kind: "damage", side: 1, amount: 92 });
+  });
+
+  it("can't Counter a Ghost type", () => {
+    const after = resolveTurn(battleOf([knowing([counter], 150)], [knowing([hit], 50, ["ghost"])]), FIGHT, maxRoll);
+    expect(after.lastTurn?.events.at(-1)).toMatchObject({ kind: "immune" });
+  });
+
+  it("deals fixed damage with Seismic Toss and Super Fang", () => {
+    const toss = resolveTurn(battleOf([knowing([seismicToss], 150)], [knowing([hit], 50, ["rock"])]), FIGHT, maxRoll);
+    expect(toss.lastTurn?.events[1]).toMatchObject({ kind: "damage", amount: 50, effectiveness: 1 });
+
+    const fang = resolveTurn(battleOf([knowing([superFang], 150)], [knowing([hit], 50)]), FIGHT, maxRoll);
+    expect(fang.lastTurn?.events[1]).toMatchObject({ kind: "damage", amount: 100 });
+  });
+
+  it("blocks the foe's move with Protect, which goes first and gets less reliable in a row", () => {
+    const first = resolveTurn(battleOf([knowing([protect], 50)], [knowing([hit], 150)]), FIGHT, script(0.5));
+    expect(first.lastTurn?.events).toMatchObject([
+      { kind: "move", side: 0 },
+      { kind: "protect", side: 0, blocked: false },
+      { kind: "move", side: 1 },
+      { kind: "protect", side: 0, blocked: true },
+    ]);
+    expect(first.sides[0].team[0].hp).toBe(200);
+
+    // A second Protect in a row only works a third of the time
+    const second = resolveTurn(first, FIGHT, script(0.5));
+    expect(second.lastTurn?.events[1]).toMatchObject({ kind: "fail" });
+    expect(second.sides[0].team[0].hp).toBeLessThan(200);
+  });
+});
+
+describe("moves without a base power", () => {
+  const splashOnly: MoveInfo = { name: "splash", type: "normal", category: "status", power: null };
+  const move = (
+    name: string,
+    type: PokemonType,
+    category: MoveInfo["category"] = "physical",
+    extra: Partial<MoveInfo> = {}
+  ): MoveInfo => ({ name, type, category, power: null, ...extra });
+
+  function knowing(moves: MoveInfo[], speed: number, extra: Partial<Combatant> = {}, types: PokemonType[] = ["water"]): Combatant {
+    return { ...fighter(types, { speed }), moves, ...extra };
+  }
+  const damageEvents = (battle: Battle) => battle.lastTurn?.events.filter((event) => event.kind === "damage") ?? [];
+  /** The damage of a regular move with the given power and category, between two plain test Pokémon */
+  const regular = (power: number, base: MoveInfo = hit) =>
+    calculateDamage(fighter(["water"]), fighter(["water"]), { ...base, power }, maxRoll).damage;
+
+  it("supports every learnable damaging move without a base power, except the ones that need a held item", () => {
+    const names = [
+      "beat-up", "bide", "counter", "crush-grip", "dragon-rage", "electro-ball", "endeavor", "final-gambit", "fissure", "flail",
+      "frustration", "grass-knot", "guillotine", "gyro-ball", "heat-crash", "heavy-slam", "horn-drill", "low-kick", "magnitude",
+      "metal-burst", "mirror-coat", "natures-madness", "night-shade", "pika-papow", "present", "psywave", "punishment", "return",
+      "reversal", "seismic-toss", "sheer-cold", "sonic-boom", "spit-up", "super-fang", "trump-card", "veevee-volley", "wring-out",
+    ];
+    for (const name of names) expect(isUsableMove(move(name, "normal")), name).toBe(true);
+    expect(isUsableMove(move("fling", "dark"))).toBe(false);
+    expect(isUsableMove(move("natural-gift", "normal"))).toBe(false);
+  });
+
+  it("hits heavier targets harder with Low Kick", () => {
+    const lowKick = move("low-kick", "fighting");
+    const light = resolveTurn(battleOf([knowing([lowKick], 150)], [knowing([hit], 50, { weightKg: 5 })]), FIGHT, maxRoll);
+    const heavy = resolveTurn(battleOf([knowing([lowKick], 150)], [knowing([hit], 50, { weightKg: 300 })]), FIGHT, maxRoll);
+    expect(damageEvents(light)[0]).toMatchObject({ amount: regular(20) });
+    expect(damageEvents(heavy)[0]).toMatchObject({ amount: regular(120) });
+  });
+
+  it("hits harder with Flail at low HP and with Gyro Ball when slower", () => {
+    const flail = resolveTurn(battleOf([knowing([move("flail", "normal")], 150, { hp: 2 })], [knowing([splashOnly], 50)]), FIGHT, maxRoll);
+    expect(damageEvents(flail)[0]).toMatchObject({ amount: regular(200) });
+
+    const gyro = resolveTurn(battleOf([knowing([move("gyro-ball", "normal")], 20)], [knowing([splashOnly], 200)]), FIGHT, maxRoll);
+    expect(damageEvents(gyro)[0]).toMatchObject({ amount: regular(150) });
+  });
+
+  it("announces Magnitude's power", () => {
+    const after = resolveTurn(battleOf([knowing([move("magnitude", "ground")], 150)], [knowing([splashOnly], 50)]), FIGHT, script(0.5, 1));
+    expect(after.lastTurn?.events[1]).toMatchObject({ kind: "info", text: "Magnitude 7!" });
+    expect(damageEvents(after)[0]).toMatchObject({ amount: regular(70) });
+  });
+
+  it("knocks out in one hit with OHKO moves, and Sheer Cold can't hit Ice types", () => {
+    const fissure = move("fissure", "ground", "physical", { accuracy: 30 });
+    const after = resolveTurn(battleOf([knowing([fissure], 150)], [knowing([hit], 50)]), FIGHT, minRoll);
+    expect(kinds(after)).toEqual(["move", "damage", "info", "faint", "win"]);
+
+    const sheerCold = move("sheer-cold", "ice", "special", { accuracy: 30 });
+    const ice = resolveTurn(battleOf([knowing([sheerCold], 150)], [knowing([hit], 50, {}, ["ice"])]), FIGHT, minRoll);
+    expect(ice.lastTurn?.events[1]).toMatchObject({ kind: "immune" });
+  });
+
+  it("cuts the foe down to the user's HP with Endeavor, and fails when it can't", () => {
+    const endeavor = move("endeavor", "normal");
+    const after = resolveTurn(battleOf([knowing([endeavor], 150, { hp: 30 })], [knowing([splashOnly], 50)]), FIGHT, maxRoll);
+    expect(after.sides[1].team[0].hp).toBe(30);
+    const again = resolveTurn(after, FIGHT, maxRoll);
+    expect(again.lastTurn?.events[1]).toMatchObject({ kind: "fail" });
+  });
+
+  it("faints the user of Final Gambit after dealing its HP as damage", () => {
+    const gambit = move("final-gambit", "fighting", "special");
+    const after = resolveTurn(
+      battleOf([knowing([gambit], 150, { hp: 80 }), fighter(["water"])], [knowing([splashOnly], 50)]),
+      FIGHT,
+      maxRoll
+    );
+    expect(after.sides[1].team[0].hp).toBe(120);
+    expect(after.sides[0].team[0].hp).toBe(0);
+  });
+
+  it("hits once per healthy teammate without a status condition with Beat Up", () => {
+    const beatUp = move("beat-up", "dark", "physical", { accuracy: 100 });
+    const team = [
+      knowing([beatUp], 150, { baseAttack: 100 }),
+      { ...fighter(["water"]), baseAttack: 50 },
+      { ...fighter(["water"]), status: "poison" as const },
+    ];
+    const after = resolveTurn(battleOf(team, [knowing([splashOnly], 50)]), FIGHT, minRoll);
+    expect(damageEvents(after)).toHaveLength(2);
+    expect(after.lastTurn?.events.find((event) => event.kind === "info")).toMatchObject({ side: 1, text: "Hit 2 times!" });
+  });
+
+  it("stores defenses with Stockpile and releases them with Spit Up", () => {
+    const stockpile = move("stockpile", "normal", "status", {
+      statTarget: "user",
+      statChanges: [{ stat: "defense", change: 1 }, { stat: "special-defense", change: 1 }],
+    });
+    const spitUp = move("spit-up", "normal", "special");
+    const SPIT: [BattleChoice, BattleChoice] = [{ kind: "move", index: 1 }, { kind: "move", index: 0 }];
+    const stored = resolveTurn(battleOf([knowing([stockpile, spitUp], 150)], [knowing([splashOnly], 50)]), FIGHT, maxRoll);
+    expect(stored.sides[0].team[0]).toMatchObject({ stockpile: 1, boosts: { defense: 1, "special-defense": 1 } });
+
+    const spat = resolveTurn(stored, SPIT, maxRoll);
+    expect(damageEvents(spat)[0]).toMatchObject({ amount: regular(100, blast) });
+    expect(spat.sides[0].team[0]).toMatchObject({ stockpile: 0, boosts: { defense: 0, "special-defense": 0 } });
+
+    const empty = resolveTurn(spat, SPIT, maxRoll);
+    expect(empty.lastTurn?.events[1]).toMatchObject({ kind: "fail" });
+  });
+
+  it("gets stronger with Trump Card as its PP runs out, then can't use it", () => {
+    const trumpCard = move("trump-card", "normal", "special");
+    let battle = battleOf([knowing([trumpCard], 150)], [{ ...knowing([splashOnly], 50), maxHp: 9999, hp: 9999 }]);
+    const amounts: number[] = [];
+    for (let turn = 0; turn < 6; turn++) {
+      battle = resolveTurn(battle, FIGHT, maxRoll);
+      amounts.push(damageEvents(battle)[0]?.amount ?? 0);
+    }
+    expect(amounts.slice(0, 5)).toEqual([40, 50, 60, 80, 200].map((power) => regular(power, blast)));
+    expect(amounts[5]).toBe(0);
+    expect(battle.lastTurn?.events[1]).toMatchObject({ kind: "fail" });
+  });
+
+  it("stores energy with Bide for two turns, then hits back for double, and can't switch meanwhile", () => {
+    const bide = move("bide", "normal", "physical", { priority: 1 });
+    let battle = battleOf([knowing([bide, hit], 50), fighter(["water"])], [knowing([hit], 150)]);
+    battle = resolveTurn(battle, FIGHT, maxRoll);
+    expect(choiceError(battle.sides[0], { kind: "switch", index: 1 })).toMatch(/storing energy/);
+
+    // Picking another move keeps biding
+    battle = resolveTurn(battle, [{ kind: "move", index: 1 }, { kind: "move", index: 0 }], maxRoll);
+    expect(battle.lastTurn?.events[0]).toMatchObject({ kind: "info", side: 0, text: "Test is storing energy!" });
+
+    battle = resolveTurn(battle, FIGHT, maxRoll);
+    expect(battle.lastTurn?.events[0]).toMatchObject({ kind: "info", text: "Test unleashed its energy!" });
+    expect(battle.lastTurn?.events[1]).toMatchObject({ kind: "damage", side: 1, amount: 46 * 2 * 2 });
+    expect(battle.sides[0].team[0].bide).toBeNull();
+  });
+});
+
+describe("weather", () => {
+  const status = (name: string, extra: Partial<MoveInfo> = {}): MoveInfo => ({ name, type: "normal", category: "status", power: null, ...extra });
+  const rainDance = status("rain-dance", { type: "water" });
+  const sunnyDay = status("sunny-day", { type: "fire" });
+  const sandstorm = status("sandstorm", { type: "rock" });
+  const splash = status("splash");
+  const surf: MoveInfo = { name: "surf", type: "water", category: "special", power: 90 };
+  const flamethrower: MoveInfo = { name: "flamethrower", type: "fire", category: "special", power: 90 };
+
+  function knowing(moves: MoveInfo[], speed: number, types: PokemonType[] = ["normal"], extra: Partial<Combatant> = {}): Combatant {
+    return { ...fighter(types, { speed }), moves, ...extra };
+  }
+  const damageTo = (battle: Battle, side: 0 | 1) =>
+    battle.lastTurn?.events.find((event) => event.kind === "damage" && event.side === side);
+
+  it("starts with a move, shows in both views, and ends after five turns", () => {
+    let battle = battleOf([knowing([rainDance], 150)], [knowing([splash], 50)]);
+    battle = resolveTurn(battle, FIGHT, maxRoll);
+    expect(battle.lastTurn?.events[1]).toMatchObject({ kind: "weather", weather: "rain", text: "It started to rain!" });
+    expect(battle.weather).toEqual({ kind: "rain", turnsLeft: 4 });
+    expect(viewFor(battle, 1, new Set()).weather).toEqual({ kind: "rain", turnsLeft: 4 });
+    expect(spectatorView(battle, new Set()).weather).toEqual({ kind: "rain", turnsLeft: 4 });
+
+    // Using it again while it's raining fails
+    battle = resolveTurn(battle, FIGHT, maxRoll);
+    expect(battle.lastTurn?.events[1]).toMatchObject({ kind: "fail" });
+    expect(battle.lastTurn?.weather).toBe("rain");
+
+    for (let turn = 0; turn < 3; turn++) battle = resolveTurn(battle, [{ kind: "move", index: 0 }, { kind: "move", index: 0 }], maxRoll);
+    expect(battle.weather).toBeNull();
+    expect(battle.lastTurn?.events.at(-1)).toMatchObject({ kind: "weather", weather: null, text: "The rain stopped." });
+  });
+
+  it("strengthens Water and weakens Fire moves in rain, and the opposite in sun", () => {
+    const plain = (move: MoveInfo) => calculateDamage(fighter(["normal"]), fighter(["normal"]), move, maxRoll).damage;
+    const inRain = (move: MoveInfo) => calculateDamage(fighter(["normal"]), fighter(["normal"]), move, maxRoll, false, { weather: "rain" }).damage;
+    const inSun = (move: MoveInfo) => calculateDamage(fighter(["normal"]), fighter(["normal"]), move, maxRoll, false, { weather: "sun" }).damage;
+    expect(inRain(surf)).toBe(Math.floor(plain(surf) * 1.5));
+    expect(inRain(flamethrower)).toBe(Math.floor(plain(flamethrower) * 0.5));
+    expect(inSun(flamethrower)).toBe(Math.floor(plain(flamethrower) * 1.5));
+    expect(inSun(surf)).toBe(Math.floor(plain(surf) * 0.5));
+    expect(inRain(hit)).toBe(plain(hit));
+
+    // The weather set this turn already affects the slower Pokémon's move
+    const after = resolveTurn(battleOf([knowing([rainDance], 150)], [knowing([surf], 50)]), FIGHT, maxRoll);
+    expect(damageTo(after, 0)).toMatchObject({ amount: inRain(surf) });
+  });
+
+  it("raises Rock types' Special Defense in a sandstorm", () => {
+    const rock = fighter(["rock"]);
+    const plain = calculateDamage(fighter(["normal"]), rock, blast, maxRoll).damage;
+    expect(calculateDamage(fighter(["normal"]), rock, blast, maxRoll, false, { weather: "sand" }).damage).toBeLessThan(plain);
+    expect(calculateDamage(fighter(["normal"]), rock, hit, maxRoll, false, { weather: "sand" }).damage).toBe(
+      calculateDamage(fighter(["normal"]), rock, hit, maxRoll).damage
+    );
+  });
+
+  it("chips 1/16 HP in a sandstorm, except from Rock, Ground and Steel types", () => {
+    const after = resolveTurn(battleOf([knowing([sandstorm], 150)], [knowing([splash], 50, ["steel"])]), FIGHT, maxRoll);
+    const chips = after.lastTurn?.events.filter((event) => event.kind === "weather-damage") ?? [];
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toMatchObject({ side: 0, amount: Math.floor(200 / 16), text: "Test is buffeted by the sandstorm!" });
+  });
+
+  it("changes Weather Ball and makes Thunder never miss in rain", () => {
+    const weatherBall: MoveInfo = { name: "weather-ball", type: "normal", category: "special", power: 50 };
+    const thunder: MoveInfo = { name: "thunder", type: "electric", category: "special", power: 110, accuracy: 70 };
+    const sunny = resolveTurn(battleOf([knowing([sunnyDay], 150)], [knowing([weatherBall], 50)]), FIGHT, maxRoll);
+    expect(sunny.lastTurn?.events.find((event) => event.side === 1 && event.kind === "move")).toMatchObject({ moveType: "fire" });
+    expect(damageTo(sunny, 0)).toMatchObject({
+      amount: calculateDamage(fighter(["normal"]), fighter(["normal"]), { ...weatherBall, type: "fire", power: 100 }, maxRoll, false, { weather: "sun" }).damage,
+    });
+
+    // maxRoll misses anything with an accuracy check, so a hit means Thunder skipped it
+    const rainy = resolveTurn(battleOf([knowing([rainDance], 150)], [knowing([thunder], 50)]), FIGHT, maxRoll);
+    expect(damageTo(rainy, 0)).toBeDefined();
+  });
+
+  it("makes Synthesis heal more in sunlight and keeps Pokémon from freezing", () => {
+    const synthesis = status("synthesis", { type: "grass", healing: 50 });
+    let battle = battleOf([knowing([sunnyDay, synthesis], 150, ["normal"], { hp: 50 })], [knowing([splash], 50)]);
+    battle = resolveTurn(battle, FIGHT, maxRoll);
+    battle = resolveTurn(battle, [{ kind: "move", index: 1 }, { kind: "move", index: 0 }], maxRoll);
+    expect(battle.lastTurn?.events.find((event) => event.kind === "heal")).toMatchObject({ amount: Math.floor((200 * 200) / 3 / 100) });
+
+    const iceBeam: MoveInfo = { name: "ice-beam", type: "ice", category: "special", power: 90, ailment: "freeze", ailmentChance: 0 };
+    const frozen = resolveTurn(battleOf([knowing([sunnyDay], 150)], [knowing([iceBeam], 50)]), FIGHT, minRoll);
+    expect(frozen.sides[0].team[0].status).toBeNull();
+  });
+});
+
+describe("field moves", () => {
+  const status = (name: string, extra: Partial<MoveInfo> = {}): MoveInfo => ({ name, type: "normal", category: "status", power: null, ...extra });
+  const splash = status("splash");
+  const reflect = status("reflect", { type: "psychic" });
+  const spikes = status("spikes", { type: "ground" });
+  const stealthRock = status("stealth-rock", { type: "rock" });
+  const toxicSpikes = status("toxic-spikes", { type: "poison" });
+  const stickyWeb = status("sticky-web", { type: "bug" });
+  const substitute = status("substitute");
+  const leechSeed = status("leech-seed", { type: "grass", accuracy: null });
+  const quickAttack: MoveInfo = { ...hit, name: "quick-attack", power: 40, priority: 1 };
+  const SECOND: [BattleChoice, BattleChoice] = [{ kind: "move", index: 1 }, { kind: "move", index: 0 }];
+
+  function knowing(moves: MoveInfo[], speed: number, types: PokemonType[] = ["water"], extra: Partial<Combatant> = {}): Combatant {
+    return { ...fighter(types, { speed }), moves, ...extra };
+  }
+  const events = (battle: Battle) => battle.lastTurn?.events ?? [];
+  const damageTo = (battle: Battle, side: 0 | 1) => events(battle).find((event) => event.kind === "damage" && event.side === side);
+
+  it("halves physical damage with Reflect, but not special damage or critical hits, and wears off after 5 turns", () => {
+    let battle = resolveTurn(battleOf([knowing([reflect], 150)], [knowing([hit], 50)]), FIGHT, maxRoll);
+    expect(events(battle)[1]).toMatchObject({ kind: "field", text: "Reflect made Ash's team stronger against physical moves!" });
+    expect(damageTo(battle, 0)).toMatchObject({ amount: 23 });
+    expect(battle.field?.sides[0].conditions.reflect).toBe(4);
+    expect(viewFor(battle, 2, new Set()).field?.sides[0].conditions.reflect).toBe(4);
+
+    const special = resolveTurn(battleOf([knowing([reflect], 150)], [knowing([blast], 50)]), FIGHT, maxRoll);
+    expect(damageTo(special, 0)).toMatchObject({ amount: 46 });
+
+    const crit = resolveTurn(battleOf([knowing([reflect], 150)], [knowing([hit], 50)]), FIGHT, script(0, 1));
+    expect(damageTo(crit, 0)).toMatchObject({ critical: true, amount: 69 });
+
+    for (let turn = 0; turn < 4; turn++) battle = resolveTurn(battle, [{ kind: "move", index: 0 }, { kind: "move", index: 0 }], maxRoll);
+    expect(battle.field?.sides[0].conditions.reflect).toBeUndefined();
+    expect(events(battle).at(-1)).toMatchObject({ kind: "field", text: "Ash's team's Reflect wore off!" });
+  });
+
+  it("hurts Pokémon switching in with Spikes, up to three layers, but not Flying types", () => {
+    let battle = battleOf([knowing([spikes], 150)], [knowing([splash], 50), fighter(["water"]), fighter(["flying"])]);
+    for (let layer = 1; layer <= 3; layer++) {
+      battle = resolveTurn(battle, FIGHT, maxRoll);
+      expect(battle.field?.sides[1].hazards.spikes).toBe(layer);
+    }
+    battle = resolveTurn(battle, FIGHT, maxRoll);
+    expect(events(battle)[1]).toMatchObject({ kind: "fail" });
+
+    const grounded = resolveTurn(battle, [{ kind: "move", index: 0 }, { kind: "switch", index: 1 }], maxRoll);
+    expect(events(grounded).find((event) => event.kind === "hazard-damage")).toMatchObject({ side: 1, hazard: "spikes", amount: 50 });
+
+    const flying = resolveTurn(battle, [{ kind: "move", index: 0 }, { kind: "switch", index: 2 }], maxRoll);
+    expect(events(flying).some((event) => event.kind === "hazard-damage")).toBe(false);
+  });
+
+  it("hurts by type with Stealth Rock, poisons with Toxic Spikes, and slows with Sticky Web", () => {
+    const charizard = fighter(["fire", "flying"]);
+    let battle = resolveTurn(battleOf([knowing([stealthRock], 150)], [knowing([splash], 50), charizard]), FIGHT, maxRoll);
+    battle = resolveTurn(battle, [{ kind: "move", index: 0 }, { kind: "switch", index: 1 }], maxRoll);
+    expect(events(battle).find((event) => event.kind === "hazard-damage")).toMatchObject({ amount: 100 });
+
+    let poisoned = resolveTurn(
+      battleOf([knowing([toxicSpikes, stickyWeb, splash], 150)], [knowing([splash], 50), fighter(["water"]), fighter(["poison"])]),
+      FIGHT,
+      maxRoll
+    );
+    poisoned = resolveTurn(poisoned, SECOND, maxRoll);
+    const water = resolveTurn(poisoned, [{ kind: "move", index: 2 }, { kind: "switch", index: 1 }], maxRoll);
+    expect(water.sides[1].team[1]).toMatchObject({ status: "poison", boosts: { speed: -1 } });
+
+    // A grounded Poison type soaks up Toxic Spikes
+    const poisonType = resolveTurn(poisoned, [{ kind: "move", index: 2 }, { kind: "switch", index: 2 }], maxRoll);
+    expect(poisonType.sides[1].team[2].status).toBeNull();
+    expect(poisonType.field?.sides[1].hazards["toxic-spikes"]).toBeUndefined();
+  });
+
+  it("can knock out a Pokémon switching in, and hits the one sent in after it", () => {
+    const battle = battleOf([knowing([splash], 150)], [knowing([splash], 50), fighter(["fire", "flying"], {}, 10)]);
+    battle.field = { sides: [{ conditions: {}, hazards: {} }, { conditions: {}, hazards: { "stealth-rock": 1 } }], effects: {}, terrain: null };
+    battle.sides[1].team[0].hp = 200;
+    const after = resolveTurn(battle, [{ kind: "move", index: 0 }, { kind: "switch", index: 1 }], maxRoll);
+    expect(kinds(after)).toEqual(["withdraw", "switch", "hazard-damage", "faint", "move", "fail", "switch", "hazard-damage"]);
+    expect(after.replacing).toBeUndefined();
+    expect(after.sides[1].active).toBe(0);
+    expect(after.sides[1].team[0].hp).toBe(200 - 25);
+
+    // With nothing left to send in, the knockout ends the battle
+    const last = battleOf([knowing([splash], 150)], [{ ...fighter(["water"]), hp: 0 }, fighter(["fire", "flying"], {}, 10)]);
+    last.field = after.field;
+    last.replacing = [false, true];
+    const sentIn = resolveReplacements(last, [null, 1]);
+    expect(kinds(sentIn)).toEqual(["switch", "hazard-damage", "faint", "win"]);
+    expect(sentIn.winner).toBe(1);
+  });
+
+  it("speeds a team up with Tailwind and reverses the order with Trick Room", () => {
+    const tailwind = status("tailwind", { type: "flying" });
+    let battle = resolveTurn(battleOf([knowing([tailwind, hit], 80)], [knowing([hit], 100)]), FIGHT, maxRoll);
+    battle = resolveTurn(battle, SECOND, maxRoll);
+    expect(events(battle)[0]).toMatchObject({ kind: "move", side: 0 });
+
+    const trickRoom = status("trick-room", { type: "psychic", priority: -7 });
+    let twisted = resolveTurn(battleOf([knowing([trickRoom, hit], 150)], [knowing([hit], 50)]), FIGHT, maxRoll);
+    twisted = resolveTurn(twisted, SECOND, maxRoll);
+    expect(events(twisted)[0]).toMatchObject({ kind: "move", side: 1 });
+  });
+
+  it("puts up a Substitute that takes hits and blocks status moves until it breaks", () => {
+    const thunderWave = status("thunder-wave", { type: "electric", ailment: "paralysis", accuracy: null });
+    let battle = resolveTurn(battleOf([knowing([substitute, splash], 150)], [knowing([hit, thunderWave], 50)]), FIGHT, maxRoll);
+    expect(battle.sides[0].team[0]).toMatchObject({ hp: 150, substituteHp: 4 });
+    expect(events(battle).at(-1)).toMatchObject({ kind: "substitute", side: 0, active: true, hp: 150 });
+    battle = resolveTurn(battle, SECOND, maxRoll);
+    expect(events(battle).at(-1)).toMatchObject({ kind: "substitute", side: 0, active: false, hp: 150 });
+    expect(battle.sides[0].team[0].substituteHp).toBe(0);
+
+    battle = resolveTurn(battleOf([knowing([substitute, splash], 150)], [knowing([thunderWave], 50)]), FIGHT, maxRoll);
+    expect(events(battle).at(-1)).toMatchObject({ kind: "fail", side: 1 });
+    expect(battle.sides[0].team[0].status).toBeNull();
+    expect(viewFor(battle, 2, new Set()).opponent.active.substitute).toBe(true);
+  });
+
+  it("drains the foe with Leech Seed until Rapid Spin frees it, and can't seed Grass types", () => {
+    const rapidSpin: MoveInfo = { name: "rapid-spin", type: "normal", category: "physical", power: 50 };
+    let battle = resolveTurn(battleOf([knowing([leechSeed], 150, ["water"], { hp: 100 })], [knowing([splash, rapidSpin], 50)]), FIGHT, maxRoll);
+    expect(events(battle).filter((event) => event.kind === "leech" || event.kind === "heal")).toMatchObject([
+      { kind: "leech", side: 1, amount: 25, hp: 175 },
+      { kind: "heal", side: 0, amount: 25 },
+    ]);
+    battle.field = { sides: [{ conditions: {}, hazards: {} }, { conditions: {}, hazards: { spikes: 2 } }], effects: {}, terrain: null };
+    battle = resolveTurn(battle, [{ kind: "move", index: 0 }, { kind: "move", index: 1 }], maxRoll);
+    expect(battle.sides[1].team[0].seeded).toBe(false);
+    expect(battle.field?.sides[1].hazards).toEqual({});
+
+    const grass = resolveTurn(battleOf([knowing([leechSeed], 150)], [knowing([splash], 50, ["grass"])]), FIGHT, maxRoll);
+    expect(events(grass)[1]).toMatchObject({ kind: "immune" });
+  });
+
+  it("breaks screens with Brick Break and clears them and hazards with Defog", () => {
+    const brickBreak: MoveInfo = { name: "brick-break", type: "fighting", category: "physical", power: 75 };
+    const screened = battleOf([knowing([brickBreak], 150)], [knowing([splash], 50)]);
+    screened.field = { sides: [{ conditions: {}, hazards: {} }, { conditions: { reflect: 3 }, hazards: {} }], effects: {}, terrain: null };
+    const broken = resolveTurn(screened, FIGHT, maxRoll);
+    expect(events(broken)[1]).toMatchObject({ kind: "field", text: "It shattered the barrier!" });
+    expect(damageTo(broken, 1)).toMatchObject({
+      amount: calculateDamage(fighter(["water"]), fighter(["water"]), brickBreak, maxRoll).damage,
+    });
+
+    const defog = status("defog", { type: "flying", statChanges: [{ stat: "evasion", change: -1 }], statTarget: "target" });
+    const foggy = battleOf([knowing([defog], 150)], [knowing([splash], 50)]);
+    foggy.field = {
+      sides: [{ conditions: {}, hazards: { spikes: 1 } }, { conditions: { "light-screen": 2 }, hazards: { "stealth-rock": 1 } }],
+      effects: {},
+      terrain: { kind: "grassy", turnsLeft: 3 },
+    };
+    const cleared = resolveTurn(foggy, FIGHT, maxRoll);
+    expect(cleared.field).toMatchObject({ sides: [{ hazards: {} }, { conditions: {}, hazards: {} }], terrain: null });
+  });
+
+  it("resets every stat change with Haze, and protects stats with Mist and status with Safeguard", () => {
+    const haze = status("haze", { type: "ice" });
+    const boosted = battleOf([knowing([haze], 150, ["water"], { boosts: { attack: 2 } })], [knowing([splash], 50, ["water"], { boosts: { speed: -1 } })]);
+    const hazed = resolveTurn(boosted, FIGHT, maxRoll);
+    expect([hazed.sides[0].team[0].boosts, hazed.sides[1].team[0].boosts]).toEqual([{}, {}]);
+
+    const mist = status("mist", { type: "ice" });
+    const growl = status("growl", { statChanges: [{ stat: "attack", change: -1 }], statTarget: "target" });
+    const misty = resolveTurn(battleOf([knowing([mist], 150)], [knowing([growl], 50)]), FIGHT, maxRoll);
+    expect(misty.sides[0].team[0].boosts.attack ?? 0).toBe(0);
+
+    const safeguard = status("safeguard");
+    const willOWisp = status("will-o-wisp", { type: "fire", ailment: "burn", accuracy: null });
+    const safe = resolveTurn(battleOf([knowing([safeguard], 150)], [knowing([willOWisp], 50)]), FIGHT, maxRoll);
+    expect(safe.sides[0].team[0].status).toBeNull();
+  });
+
+  it("boosts moves, heals and blocks priority or status with terrains", () => {
+    const grassyTerrain = status("grassy-terrain", { type: "grass" });
+    const grassy = resolveTurn(battleOf([knowing([grassyTerrain], 150, ["water"], { hp: 100 })], [knowing([splash], 50)]), FIGHT, maxRoll);
+    expect(events(grassy).find((event) => event.kind === "heal")).toMatchObject({ side: 0, amount: 12 });
+
+    const psychicTerrain = status("psychic-terrain", { type: "psychic" });
+    const psychic = resolveTurn(battleOf([knowing([psychicTerrain], 150)], [knowing([quickAttack], 50)]), FIGHT, maxRoll);
+    // Quick Attack goes first, before the terrain is up, then is blocked the next turn
+    const next = resolveTurn(psychic, FIGHT, maxRoll);
+    expect(events(next).find((event) => event.side === 0 && event.kind === "protect")).toMatchObject({ blocked: true });
+
+    const electricTerrain = status("electric-terrain", { type: "electric" });
+    const spore = status("spore", { type: "grass", ailment: "sleep", accuracy: null });
+    const awake = resolveTurn(battleOf([knowing([electricTerrain], 150)], [knowing([spore], 50)]), FIGHT, maxRoll);
+    expect(awake.sides[0].team[0].status).toBeNull();
+
+    const thunderbolt: MoveInfo = { name: "thunderbolt", type: "electric", category: "special", power: 90 };
+    const plain = calculateDamage(fighter(["water"]), fighter(["normal"]), thunderbolt, maxRoll).damage;
+    const field: FieldState = { ...emptyField(), terrain: { kind: "electric", turnsLeft: 3 } };
+    expect(calculateDamage(fighter(["water"]), fighter(["normal"]), thunderbolt, maxRoll, false, { field }).damage).toBe(Math.floor(plain * 1.3));
+  });
+
+  it("lets Ground moves hit Flying types under Gravity", () => {
+    const earthquake: MoveInfo = { name: "earthquake", type: "ground", category: "physical", power: 100 };
+    const gravity = status("gravity", { type: "psychic" });
+    let battle = battleOf([knowing([gravity, earthquake], 150)], [knowing([splash], 50, ["flying"])]);
+    const before = resolveTurn(battle, SECOND, maxRoll);
+    expect(events(before)[1]).toMatchObject({ kind: "immune" });
+    battle = resolveTurn(battle, FIGHT, maxRoll);
+    battle = resolveTurn(battle, SECOND, maxRoll);
+    expect(damageTo(battle, 1)).toBeDefined();
+  });
+
+  it("blocks switching for a turn with Fairy Lock", () => {
+    const fairyLock = status("fairy-lock", { type: "fairy" });
+    const battle = resolveTurn(battleOf([knowing([fairyLock], 150), fighter(["water"])], [knowing([splash], 50)]), FIGHT, maxRoll);
+    expect(choiceError(battle.sides[0], { kind: "switch", index: 1 }, battle.field)).toMatch(/Fairy Lock/);
+    expect(() => resolveTurn(battle, [{ kind: "switch", index: 1 }, { kind: "move", index: 0 }], maxRoll)).toThrow(/Fairy Lock/);
+    const later = resolveTurn(battle, FIGHT, maxRoll);
+    expect(choiceError(later.sides[0], { kind: "switch", index: 1 }, later.field)).toBeNull();
+  });
+
+  it("blocks priority moves with Quick Guard, and Mat Block only works on the first turn out", () => {
+    const quickGuard = status("quick-guard", { type: "fighting", priority: 3 });
+    const guarded = resolveTurn(battleOf([knowing([quickGuard], 50)], [knowing([quickAttack], 150)]), FIGHT, maxRoll);
+    expect(events(guarded).at(-1)).toMatchObject({ kind: "protect", side: 0, blocked: true });
+
+    const matBlock = status("mat-block", { type: "fighting" });
+    let mat = resolveTurn(battleOf([knowing([matBlock], 150)], [knowing([hit], 50)]), FIGHT, maxRoll);
+    expect(damageTo(mat, 0)).toBeUndefined();
+    mat = resolveTurn(mat, FIGHT, maxRoll);
+    expect(events(mat)[1]).toMatchObject({ kind: "fail" });
+  });
+
+  it("swaps the sides' effects with Court Change", () => {
+    const courtChange = status("court-change", { type: "normal" });
+    const battle = battleOf([knowing([courtChange], 150)], [knowing([splash], 50)]);
+    battle.field = { sides: [{ conditions: {}, hazards: { spikes: 2 } }, { conditions: { reflect: 3 }, hazards: {} }], effects: {}, terrain: null };
+    const after = resolveTurn(battle, FIGHT, maxRoll);
+    expect(after.field?.sides[0]).toMatchObject({ conditions: { reflect: 2 }, hazards: {} });
+    expect(after.field?.sides[1]).toMatchObject({ conditions: {}, hazards: { spikes: 2 } });
   });
 });

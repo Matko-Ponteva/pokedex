@@ -92,6 +92,7 @@ export const moves = pgTable("moves", {
   statChance: integer("stat_chance").notNull().default(0),
   healing: integer("healing").notNull().default(0),
   drain: integer("drain").notNull().default(0),
+  priority: integer("priority").notNull().default(0),
   /** Bumped when we start reading more move data from PokéAPI, so older rows get refetched */
   dataVersion: integer("data_version").notNull().default(0),
 });

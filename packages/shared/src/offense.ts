@@ -33,6 +33,8 @@ export type MoveInfo = {
   healing?: number;
   /** Percent of damage dealt the user regains (Giga Drain), or loses as recoil when negative */
   drain?: number;
+  /** Moves with higher priority go first regardless of speed: Protect is +4, Quick Attack +1, Counter -5 */
+  priority?: number;
 };
 
 export const BOOST_STATS = ["attack", "defense", "special-attack", "special-defense", "speed", "accuracy", "evasion"] as const;

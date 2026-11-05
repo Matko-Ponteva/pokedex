@@ -33,6 +33,7 @@ type RawMove = {
   name: string;
   power: number | null;
   accuracy: number | null;
+  priority: number;
   type: NamedResource;
   damage_class: NamedResource;
   target: NamedResource;
@@ -157,5 +158,6 @@ export async function fetchMove(name: string): Promise<MoveInfo> {
     statChance: move.meta?.stat_chance ?? 0,
     healing: move.meta?.healing ?? 0,
     drain: move.meta?.drain ?? 0,
+    priority: move.priority ?? 0,
   };
 }

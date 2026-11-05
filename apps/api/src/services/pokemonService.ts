@@ -39,19 +39,25 @@ export async function listPokemon({ search, type, page, pageSize }: ListOptions)
   return { items, page, pageSize, total, hasMore: page * pageSize < total };
 }
 
+/** Bump when fetchPokemonDetail changes what it returns, so cached rows get refetched (2: level-up moves only) */
+const DETAIL_CACHE_VERSION = 2;
+
 export async function getPokemon(id: number): Promise<PokemonDetail> {
   const [row] = await db.select().from(pokemonDetails).where(eq(pokemonDetails.id, id));
 
-  // Rows saved before learnsets were added have no moves: treat them as missing
-  if (row && Array.isArray(row.data.moves)) return row.data;
+  if (row && row.data.cacheVersion === DETAIL_CACHE_VERSION) {
+    const { cacheVersion: _, ...detail } = row.data;
+    return detail;
+  }
 
   const detail = await fetchPokemonDetail(id);
+  const data = { ...detail, cacheVersion: DETAIL_CACHE_VERSION };
   await db
     .insert(pokemonDetails)
-    .values({ id, data: detail })
+    .values({ id, data })
     .onConflictDoUpdate({
       target: pokemonDetails.id,
-      set: { data: detail, fetchedAt: new Date() },
+      set: { data, fetchedAt: new Date() },
     });
   return detail;
 }

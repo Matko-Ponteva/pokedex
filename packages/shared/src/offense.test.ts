@@ -40,6 +40,11 @@ describe("analyzeCoverage", () => {
     expect(entryFor([charizard], ["steel"])).toMatchObject({ best: 3, bestMoves: ["flamethrower"] });
   });
 
+  it("can leave STAB out to show plain type effectiveness", () => {
+    expect(analyzeCoverage([charizard], [{ types: ["steel"], count: 1 }], { stab: false })[0])
+      .toMatchObject({ best: 2, bestMoves: ["flamethrower", "earthquake"] });
+  });
+
   it("lists every move that reaches the best value", () => {
     expect(entryFor([charizard], ["grass"]).bestMoves).toEqual(["flamethrower", "air-slash"]);
   });

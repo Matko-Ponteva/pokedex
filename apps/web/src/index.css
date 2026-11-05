@@ -66,6 +66,7 @@ button.danger { background: #c62828; }
 .move-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
 .move-select { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #6b7088; }
 .move-select select { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #ccd; border-radius: 8px; color: #1a1d29; background: #fff; }
+.move-select select.invalid { border-color: #c62828; box-shadow: 0 0 0 1px #c62828; }
 .member-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .member-actions button { padding: 6px 12px; font-size: 14px; }
 .picker { background: #fff; border-radius: 12px; padding: 16px; }

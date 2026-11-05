@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import { PROTECT_MOVES, STAT_NAMES, fieldMoveNote, hasStatusEffect, specialMoveNote, weatherMoveNote, shown, type BattleChoice, type BattleView, type MoveInfo, type ShownCombatant } from "@pokedex/shared";
+import {
+  STAT_NAMES, TEAM_TARGET_MOVES, abilityName, itemName, multiHitNote, fieldMoveNote, hasStatusEffect, specialMoveNote, statusMoveNote, weatherMoveNote, shown, type BattleChoice, type BattleView, type MoveInfo, type ShownCombatant } from "@pokedex/shared";
 import { TypeBadge } from "../components/TypeBadge";
 import { BattleField, HpBar, StatusPill } from "../components/battle/BattleField";
 import { BattleSidebar } from "../components/battle/BattleSidebar";
@@ -23,10 +24,12 @@ function moveEffect(move: MoveInfo): string | null {
   const parts: string[] = [];
   const priority = move.priority ?? 0;
   if (priority !== 0) parts.push(`Priority ${priority > 0 ? "+" : ""}${priority}`);
-  const note = specialMoveNote(move) ?? weatherMoveNote(move) ?? fieldMoveNote(move);
+  const note = specialMoveNote(move) ?? weatherMoveNote(move) ?? fieldMoveNote(move) ?? statusMoveNote(move);
   if (note) parts.push(note);
+  const hits = multiHitNote(move);
+  if (hits) parts.push(hits);
   if (move.category === "status" && !hasStatusEffect(move)) parts.push("No effect in battles yet");
-  if (PROTECT_MOVES.has(move.name)) parts.push("Blocks the foe's move");
+  if (move.name === "protect" || move.name === "detect") parts.push("Blocks the foe's move");
   if (move.ailment) {
     const chance = move.category === "status" || !move.ailmentChance ? "" : ` (${move.ailmentChance}%)`;
     parts.push(`${AILMENT_LABELS[move.ailment]}${chance}`);
@@ -70,6 +73,8 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
   const chat = useBattleChat(battle.id);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  /** A move waiting for a team member to be picked: who comes in after U-turn, or who Revival Blessing revives */
+  const [pending, setPending] = useState<{ index: number; revive: boolean } | null>(null);
   const now = useNow();
 
   const mySide = battle.mySide;
@@ -77,7 +82,6 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
   const mine = battle.me.team[battle.me.active];
   // Bide locks the Pokémon in until it hits back
   const biding = Boolean(mine.bide) && mine.hp > 0;
-  const fairyLocked = Boolean(battle.field?.effects["fairy-lock"]);
   const final: [ShownCombatant, ShownCombatant] =
     mySide === 0 ? [shown(mine), battle.opponent.active] : [battle.opponent.active, shown(mine)];
   const playback = useTurnPlayback({
@@ -107,6 +111,10 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
           ? `Waiting for ${opponentName} to send out their next Pokémon…`
       : battle.hasChosen
         ? `Waiting for ${opponentName}…`
+        : pending
+          ? pending.revive
+            ? "Choose a fainted teammate to revive."
+            : `Choose who comes in after ${formatMove(mine.moves[pending.index].name)}.`
         : biding
           ? `${formatPokemonName(mine.name)} is storing energy! Pick any move to keep biding.`
         : battle.opponentHasChosen
@@ -114,6 +122,7 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
           : `What will ${formatPokemonName(mine.name)} do?`;
 
   const choose = async (choice: BattleChoice) => {
+    setPending(null);
     setSending(true);
     setError(null);
     try {
@@ -132,7 +141,21 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
   const ready = !finished && !battle.hasChosen && !sending && !playback.playing;
   // Moves need a normal turn; switching is also how you pick a replacement after a faint
   const canAct = ready && !replacePhase;
-  const canSwitch = ready && (replacePhase ? battle.mustReplace : !biding && !fairyLocked);
+  const canSwitch = ready && (replacePhase ? battle.mustReplace : !battle.switchLock);
+  // With every move out of PP or locked, any button makes the Pokémon struggle
+  const struggling = !biding && battle.moveLocks.length > 0 && battle.moveLocks.every(Boolean);
+
+  /** Moves like U-turn and Revival Blessing first ask which team member they're for, when there's a choice */
+  const pickMove = (index: number) => {
+    const move = mine.moves[index];
+    if (!TEAM_TARGET_MOVES.has(move.name)) return choose({ kind: "move", index });
+    const revive = move.name === "revival-blessing";
+    const options = battle.me.team.flatMap((member, i) =>
+      (revive ? member.hp === 0 : member.hp > 0 && i !== battle.me.active) ? [i] : []
+    );
+    if (options.length <= 1) return choose({ kind: "move", index, target: options[0] });
+    setPending({ index, revive });
+  };
   const choosingReplacement = battle.mustReplace && !battle.hasChosen && !playback.playing;
 
   const banner = !playback.playing && finished
@@ -217,14 +240,23 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
               <div className="battle-moves">
                 {mine.moves.map((move, index) => {
                   const effect = moveEffect(move);
+                  const lock = struggling || biding ? null : battle.moveLocks[index];
+                  const pp = mine.pp?.[index];
+                  const maxPp = move.pp ? Math.floor((move.pp * 8) / 5) : null;
                   return (
                     <button
                       key={move.name}
                       type="button"
-                      className={move.category === "status" ? "battle-move status-move" : "battle-move"}
+                      className={[
+                        "battle-move",
+                        move.category === "status" ? "status-move" : "",
+                        lock ? "locked" : "",
+                        pending?.index === index ? "pending" : "",
+                      ].join(" ")}
                       style={{ borderLeftColor: TYPE_COLORS[move.type] }}
-                      disabled={!canAct}
-                      onClick={() => choose({ kind: "move", index })}
+                      disabled={!canAct || Boolean(lock)}
+                      title={lock ?? undefined}
+                      onClick={() => pickMove(index)}
                     >
                       <span className="battle-move-name">{formatMove(move.name)}</span>
                       <span className="battle-move-info">
@@ -232,31 +264,46 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
                         <span className="move-category">{CATEGORY_LABELS[move.category]}</span>
                         {move.category !== "status" && <span>Pow {move.power ?? "—"}</span>}
                         <span>Acc {move.accuracy ?? "—"}</span>
+                        {pp !== null && pp !== undefined && maxPp !== null && (
+                          <span className={pp === 0 ? "move-pp empty" : "move-pp"}>
+                            PP {pp}/{maxPp}
+                          </span>
+                        )}
                       </span>
+                      {lock && <span className="battle-move-lock">{lock}</span>}
                       {effect && <span className="battle-move-effect">{effect}</span>}
                     </button>
                   );
                 })}
               </div>
+              {struggling && canAct && (
+                <p className="battle-note">No usable moves left: any move makes {formatPokemonName(mine.name)} use Struggle.</p>
+              )}
+              {pending && (
+                <button type="button" className="secondary" onClick={() => setPending(null)}>
+                  Cancel {formatMove(mine.moves[pending.index].name)}
+                </button>
+              )}
               {error && <p className="form-error" role="alert">{error}</p>}
             </section>
           )}
 
-          <section aria-labelledby="bench-title" className={choosingReplacement ? "bench-section choosing" : "bench-section"}>
+          <section
+            aria-labelledby="bench-title"
+            className={choosingReplacement || pending ? "bench-section choosing" : "bench-section"}
+          >
             <h2 id="bench-title" className="bench-title">
               {choosingReplacement ? (
                 "Choose your next Pokémon"
+              ) : pending ? (
+                pending.revive ? "Choose who to revive" : "Choose who comes in"
               ) : (
                 <>
                   Your team{" "}
                   {!finished && (
                     <span className="muted">
                       ·{" "}
-                      {biding
-                        ? "Can't switch while storing energy"
-                        : fairyLocked
-                          ? "Fairy Lock: no switching this turn"
-                          : "Switching uses your turn"}
+                      {battle.switchLock ?? "Switching uses your turn"}
                     </span>
                   )}
                 </>
@@ -266,14 +313,19 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
               {battle.me.team.map((combatant, index) => {
                 const active = index === battle.me.active;
                 const fainted = combatant.hp === 0;
+                // While a move waits for a team member, the bench picks that member instead of switching
+                const pickable = pending ? (pending.revive ? fainted : !fainted && !active) : canSwitch && !active && !fainted;
+                const verb = pending ? (pending.revive ? "Revive" : "Bring in") : battle.mustReplace ? "Send in" : "Switch to";
                 return (
                   <li key={index}>
                     <button
                       type="button"
                       className={["bench-card", fainted ? "fainted" : "", active ? "active" : ""].join(" ")}
-                      disabled={!canSwitch || active || fainted}
-                      aria-label={`${battle.mustReplace ? "Send in" : "Switch to"} ${formatPokemonName(combatant.name)}`}
-                      onClick={() => choose({ kind: "switch", index })}
+                      disabled={!pickable || (pending !== null && !canAct)}
+                      aria-label={`${verb} ${formatPokemonName(combatant.name)}`}
+                      onClick={() =>
+                        pending ? choose({ kind: "move", index: pending.index, target: index }) : choose({ kind: "switch", index })
+                      }
                     >
                       <img src={combatant.spriteUrl} alt="" width={48} height={48} />
                       <span className="bench-info">
@@ -281,6 +333,11 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
                           {formatPokemonName(combatant.name)} <StatusPill status={combatant.status} />
                           {active && !fainted && <span className="bench-tag">In battle</span>}
                           {fainted && <span className="bench-tag">Fainted</span>}
+                        </span>
+                        <span className="bench-build">
+                          {[combatant.ability && abilityName(combatant.ability), combatant.item && itemName(combatant.item)]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                         <HpBar hp={combatant.hp} maxHp={combatant.maxHp} showNumbers />
                       </span>

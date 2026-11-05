@@ -54,15 +54,15 @@ function TeamEditor({ teamId, initial }: EditorProps) {
   function addMember(pokemon: PokemonSummary) {
     setDraft((d) => {
       if (d.members.length >= MAX_MEMBERS) return d;
-      const member: DraftMember = { key: crypto.randomUUID(), pokemon, moves: [] };
+      const member: DraftMember = { key: crypto.randomUUID(), pokemon, moves: [], ability: null, item: null, nature: null };
       return { ...d, members: [...d.members, member] };
     });
   }
 
-  function changeMoves(key: string, moves: string[]) {
+  function changeMember(key: string, change: Partial<Pick<DraftMember, "moves" | "ability" | "item" | "nature">>) {
     setDraft((d) => ({
       ...d,
-      members: d.members.map((m) => (m.key === key ? { ...m, moves } : m)),
+      members: d.members.map((m) => (m.key === key ? { ...m, ...change } : m)),
     }));
   }
 
@@ -129,7 +129,7 @@ function TeamEditor({ teamId, initial }: EditorProps) {
                 isFirst={index === 0}
                 isLast={index === draft.members.length - 1}
                 moveInfo={moveInfo}
-                onMovesChange={(moves) => changeMoves(member.key, moves)}
+                onChange={(change) => changeMember(member.key, change)}
                 onMoveUp={() => moveMember(index, -1)}
                 onMoveDown={() => moveMember(index, 1)}
                 onRemove={() => removeMember(member.key)}

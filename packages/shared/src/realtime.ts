@@ -27,7 +27,12 @@ export type BattleRespondInput = z.infer<typeof battleRespondInputSchema>;
 export const battleActionInputSchema = z.object({
   battleId: z.uuid(),
   choice: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("move"), index: z.number().int().min(0).max(3) }),
+    z.object({
+      kind: z.literal("move"),
+      index: z.number().int().min(0).max(3),
+      /** Who comes in after U-turn or Baton Pass, or who Revival Blessing revives */
+      target: z.number().int().min(0).max(5).optional(),
+    }),
     z.object({ kind: z.literal("switch"), index: z.number().int().min(0).max(5) }),
   ]),
 });

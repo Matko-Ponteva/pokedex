@@ -64,6 +64,9 @@ button.danger { background: #c62828; }
 .member-header { display: flex; gap: 12px; align-items: center; }
 .member-header h3 { margin: 0 0 4px; }
 .move-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.build-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 12px 0 0; }
+.member-build { margin: 6px 0 0; font-size: 13px; color: #6b7088; }
+.bench-build { font-size: 11px; color: #6b7088; }
 .move-select { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #6b7088; }
 .move-select select { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #ccd; border-radius: 8px; color: #1a1d29; background: #fff; }
 .move-select select.invalid { border-color: #c62828; box-shadow: 0 0 0 1px #c62828; }
@@ -275,6 +278,16 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 .side-chip.hazard { background: #fbe9e7; color: #a6361b; }
 .side-chip.substitute { background: #ede7f6; color: #4527a0; }
 .side-chip.seeded { background: #e8f5e9; color: #1b5e20; }
+.side-chip.volatile { background: #fff3e0; color: #8a4b00; }
+.gender { font-weight: 800; }
+.gender.male { color: #1e63c4; }
+.gender.female { color: #c2185b; }
+.battle-move.locked { opacity: 0.55; }
+.battle-move.pending { outline: 3px solid #5c6bc0; outline-offset: 1px; }
+.battle-move-lock { font-size: 12px; font-weight: 700; color: #b3261e; }
+.move-pp { font-variant-numeric: tabular-nums; }
+.move-pp.empty { color: #b3261e; font-weight: 700; }
+.battle-note { margin: 6px 0 0; font-size: 13px; color: #6b7088; }
 .info-box.info-empty { background: rgba(255, 255, 255, 0.8); }
 .sprite-holder.behind-sub .battle-sprite { opacity: 0.55; filter: drop-shadow(0 0 6px #b388ff); }
 @keyframes weather-in { from { opacity: 0; } }
@@ -309,6 +322,8 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 .float.heal { font-size: 40px; }
 .float.stat-up { color: #64b5f6; }
 .float.protect { color: #b388ff; }
+.float.ability { color: #ffe082; font-size: 26px; }
+.float.item { color: #a5d6a7; font-size: 24px; }
 .float.stat-down { color: #ff8a80; }
 .boosts { display: flex; flex-wrap: wrap; gap: 3px; }
 .boost { font-size: 0.72em; font-weight: 800; border-radius: 4px; padding: 0 5px; }

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  BOOST_STATS, FIELD_EFFECT_NAMES, HAZARD_NAMES, SIDE_CONDITION_NAMES, TERRAIN_NAMES, WEATHER_NAMES, battleSprites,
+  BOOST_STATS, FIELD_EFFECT_NAMES, abilityName, itemName, HAZARD_NAMES, SIDE_CONDITION_NAMES, TERRAIN_NAMES, WEATHER_NAMES, battleSprites,
   type BattleEvent, type BoostStat, type FieldEffect, type FieldState, type Hazard, type ShownCombatant, type SideCondition,
   type SideField, type SideIndex, type StatusCondition, type Weather,
 } from "@pokedex/shared";
@@ -143,7 +143,14 @@ function floatsFor(event: BattleEvent): Float[] {
     case "weather-damage":
     case "leech":
     case "hazard-damage":
+    case "hurt":
       return [{ text: `-${event.amount}`, tone: "damage" }];
+    case "volatile":
+      return event.float ? [{ text: event.float, tone: "weak" }] : [];
+    case "ability":
+      return event.ability ? [{ text: `[${abilityName(event.ability)}]`, tone: "ability" }] : [];
+    case "item":
+      return event.item ? [{ text: itemName(event.item), tone: "item" }] : [];
     case "substitute":
       return [{ text: event.active ? "Substitute!" : "Substitute broke!", tone: "protect" }];
     case "seeded":
@@ -202,6 +209,7 @@ function animationFor(event: BattleEvent | null, position: Position, eventPositi
     case "weather-damage":
     case "leech":
     case "hazard-damage":
+    case "hurt":
       return "anim-hit";
     case "substitute":
       return "anim-protect";
@@ -276,16 +284,28 @@ function InfoBox({ field, position, sideField }: { field: FieldSide; position: P
         <PartyBalls party={field.party} />
       </div>
       <div className="info-name">
-        <strong>{formatPokemonName(combatant.name)}</strong>
+        <strong>
+          {formatPokemonName(combatant.name)}
+          {combatant.gender && (
+            <span className={`gender ${combatant.gender}`} aria-label={combatant.gender}>
+              {combatant.gender === "female" ? " ♀" : " ♂"}
+            </span>
+          )}
+        </strong>
         <StatusPill status={combatant.status} />
         <span className="info-level">Lv{combatant.level}</span>
       </div>
       <HpBar hp={combatant.hp} maxHp={combatant.maxHp} showNumbers={field.showHpNumbers} />
       <BoostChips boosts={combatant.boosts} />
-      {(combatant.substitute || combatant.seeded) && (
+      {(combatant.substitute || combatant.seeded || (combatant.tags?.length ?? 0) > 0) && (
         <span className="side-chips">
           {combatant.substitute && <span className="side-chip substitute">Substitute</span>}
           {combatant.seeded && <span className="side-chip seeded">Seeded</span>}
+          {combatant.tags?.map((tag) => (
+            <span key={tag} className="side-chip volatile">
+              {tag}
+            </span>
+          ))}
         </span>
       )}
       <SideChips sideField={sideField} />

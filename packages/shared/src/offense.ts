@@ -35,6 +35,15 @@ export type MoveInfo = {
   drain?: number;
   /** Moves with higher priority go first regardless of speed: Protect is +4, Quick Attack +1, Counter -5 */
   priority?: number;
+  /** Base PP; missing means the move never runs out */
+  pp?: number | null;
+  /** An effect other than a major status the move can cause, like "confusion", "trap" or "yawn" (PokéAPI's ailment) */
+  volatile?: string | null;
+  /** Percent chance a damaging move makes the target flinch */
+  flinchChance?: number;
+  /** How many times a multi-hit move hits (Double Kick: 2–2, Bullet Seed: 2–5); missing means once */
+  minHits?: number | null;
+  maxHits?: number | null;
 };
 
 export const BOOST_STATS = ["attack", "defense", "special-attack", "special-defense", "speed", "accuracy", "evasion"] as const;

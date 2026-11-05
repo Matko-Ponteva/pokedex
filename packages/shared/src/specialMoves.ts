@@ -1,5 +1,6 @@
 import type { Combatant, RandomSource } from "./battle.ts";
-import type { BoostStat, MoveInfo } from "./offense.ts";
+import { flingPower, isBerry } from "./items.ts";
+import type { BoostStat, MoveInfo, StatChange } from "./offense.ts";
 
 /** How damaging moves that ignore the damage formula decide their damage */
 export type SpecialDamage =
@@ -40,7 +41,9 @@ export const SPECIAL_DAMAGE: Readonly<Record<string, SpecialDamage>> = {
 };
 
 /** Moves that shield the user from the foe's move this turn */
-export const PROTECT_MOVES: ReadonlySet<string> = new Set(["protect", "detect"]);
+export const PROTECT_MOVES: ReadonlySet<string> = new Set([
+  "protect", "detect", "kings-shield", "spiky-shield", "baneful-bunker", "obstruct", "burning-bulwark", "silk-trap",
+]);
 
 /** Damaging moves with their own handling in battle: multiple hits, random outcomes or several turns */
 export const UNIQUE_MOVES: ReadonlySet<string> = new Set(["beat-up", "present", "bide"]);
@@ -51,6 +54,8 @@ export type PowerContext = {
   random: RandomSource;
   /** The attacker's effective speed and the defender's, after stages and paralysis */
   speeds: [number, number];
+  attackerItem?: string | null;
+  defenderItem?: string | null;
 };
 
 /** The power to use this time, and a line to show before the hit (Magnitude 7!) */
@@ -158,14 +163,14 @@ export const VARIABLE_POWER: Readonly<Record<string, (context: PowerContext) => 
   },
   magnitude: ({ random }) => magnitude(random),
   "trump-card": ({ attacker }) => trumpCardPower(attacker.uses?.["trump-card"] ?? 0),
+  fling: ({ attackerItem }) => (attackerItem ? { power: flingPower(attackerItem) } : { fail: "But it failed!" }),
+  "natural-gift": ({ attackerItem }) => (isBerry(attackerItem) ? { power: 80 } : { fail: "But it failed!" }),
+  "knock-off": ({ defenderItem }) => ({ power: defenderItem ? 97 : 65 }),
   "spit-up": ({ attacker }) => {
     const stored = attacker.stockpile ?? 0;
     return stored > 0 ? { power: 100 * stored } : { fail: "But it failed to spit up a thing!" };
   },
 };
-
-/** Damaging moves that can't work here: they need a held item, and Pokémon don't hold items in battle */
-export const ITEM_MOVES: ReadonlySet<string> = new Set(["fling", "natural-gift"]);
 
 export function hasBattleEffect(move: MoveInfo): boolean {
   return move.name in SPECIAL_DAMAGE || move.name in VARIABLE_POWER || UNIQUE_MOVES.has(move.name);
@@ -222,4 +227,49 @@ export function specialMoveNote(move: MoveInfo): string | null {
     swallow: "Heals 25/50/100% by Stockpile",
   };
   return notes[move.name] ?? null;
+}
+
+/** How a multi-hit move hits */
+export type MultiHit = {
+  min: number;
+  max: number;
+  /** Power of the first hit, going up by that much each hit (Triple Axel: 20, 40, 60) */
+  escalating?: number;
+  /** Each hit checks accuracy again and the move stops at the first miss */
+  checksEachHit?: boolean;
+};
+
+/** Multi-hit moves that PokéAPI has no hit counts for, or that work differently */
+const MULTI_HIT_OVERRIDES: Readonly<Record<string, MultiHit>> = {
+  "population-bomb": { min: 10, max: 10, checksEachHit: true },
+  "triple-axel": { min: 3, max: 3, escalating: 20, checksEachHit: true },
+  "triple-kick": { min: 3, max: 3, escalating: 10, checksEachHit: true },
+  "tachyon-cutter": { min: 2, max: 2 },
+  "triple-dive": { min: 3, max: 3 },
+};
+
+/** Stat changes a multi-hit move makes once, after all its hits */
+export const AFTER_HITS_STAT_CHANGES: Readonly<Record<string, StatChange[]>> = {
+  "scale-shot": [
+    { stat: "defense", change: -1 },
+    { stat: "speed", change: 1 },
+  ],
+};
+
+/** How a move hits more than once, or null for a single hit */
+export function multiHitOf(move: MoveInfo): MultiHit | null {
+  const override = MULTI_HIT_OVERRIDES[move.name];
+  if (override) return override;
+  if (move.category !== "status" && move.minHits && move.maxHits && move.maxHits > 1) return { min: move.minHits, max: move.maxHits };
+  return null;
+}
+
+/** "Hits 2–5 times" and the like, for move buttons */
+export function multiHitNote(move: MoveInfo): string | null {
+  const multi = multiHitOf(move);
+  if (!multi) return null;
+  const times = multi.min === multi.max ? `${multi.max} times` : `${multi.min}–${multi.max} times`;
+  if (multi.escalating) return `Hits ${times}, harder each hit`;
+  if (multi.checksEachHit) return `Hits up to ${multi.max} times`;
+  return `Hits ${times}`;
 }

@@ -72,6 +72,9 @@ export const teamMembers = pgTable(
       .notNull()
       .references(() => pokemon.id),
     moves: text("moves").array().notNull().default(sql`'{}'`),
+    ability: text("ability"),
+    item: text("item"),
+    nature: text("nature"),
   },
   (table) => [
     primaryKey({ columns: [table.teamId, table.slot] }),
@@ -94,6 +97,11 @@ export const moves = pgTable("moves", {
   healing: integer("healing").notNull().default(0),
   drain: integer("drain").notNull().default(0),
   priority: integer("priority").notNull().default(0),
+  pp: integer("pp"),
+  volatile: text("volatile"),
+  flinchChance: integer("flinch_chance").notNull().default(0),
+  minHits: integer("min_hits"),
+  maxHits: integer("max_hits"),
   /** Bumped when we start reading more move data from PokéAPI, so older rows get refetched */
   dataVersion: integer("data_version").notNull().default(0),
 });

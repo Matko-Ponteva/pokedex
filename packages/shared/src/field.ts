@@ -1,6 +1,7 @@
 import type { MoveInfo } from "./offense.ts";
 import type { PokemonType } from "./pokemonTypes.ts";
 import { PROTECT_MOVES } from "./specialMoves.ts";
+import { FOE_VOLATILES, STATUS_MOVE_NAMES } from "./statusMoves.ts";
 import { effectivenessAgainst } from "./typeChart.ts";
 import { WEATHER_MOVES } from "./weather.ts";
 
@@ -227,7 +228,9 @@ export function hasStatusEffect(move: MoveInfo): boolean {
     move.name in TERRAIN_MOVES ||
     move.name in GUARD_MOVES ||
     OTHER_FIELD_MOVES.has(move.name) ||
-    OTHER_STATUS_MOVES.has(move.name)
+    OTHER_STATUS_MOVES.has(move.name) ||
+    STATUS_MOVE_NAMES.has(move.name) ||
+    Boolean(move.volatile && FOE_VOLATILES.has(move.volatile))
   );
 }
 

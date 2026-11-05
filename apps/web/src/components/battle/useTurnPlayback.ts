@@ -27,6 +27,10 @@ const DURATION: Record<BattleEvent["kind"], number> = {
   leech: 1000,
   "hazard-damage": 1000,
   haze: 1000,
+  volatile: 1000,
+  ability: 1100,
+  item: 1000,
+  hurt: 1000,
   faint: 1150,
   withdraw: 750,
   switch: 950,
@@ -58,6 +62,7 @@ function applyEvent(sides: Pair<ShownCombatant>, down: Pair<boolean>, event: Bat
     case "weather-damage":
     case "leech":
     case "hazard-damage":
+    case "hurt":
     case "heal":
     case "recoil":
       sides[side] = { ...sides[side], hp: event.hp };
@@ -87,6 +92,9 @@ function applyEvent(sides: Pair<ShownCombatant>, down: Pair<boolean>, event: Bat
       break;
     case "seeded":
       sides[side] = { ...sides[side], seeded: event.seeded };
+      break;
+    case "volatile":
+      sides[side] = event.combatant;
       break;
     case "haze":
       sides[0] = { ...sides[0], boosts: {} };

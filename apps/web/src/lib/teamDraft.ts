@@ -4,6 +4,10 @@ export type DraftMember = {
   key: string;
   pokemon: PokemonSummary;
   moves: string[];
+  /** Ability slug; null means the Pokémon's first regular ability */
+  ability: string | null;
+  item: string | null;
+  nature: string | null;
 };
 
 export type TeamDraft = {
@@ -22,6 +26,9 @@ export function draftFromTeam(team: Team): TeamDraft {
       key: crypto.randomUUID(),
       pokemon: m.pokemon,
       moves: m.moves,
+      ability: m.ability,
+      item: m.item,
+      nature: m.nature,
     })),
   };
 }
@@ -29,7 +36,13 @@ export function draftFromTeam(team: Team): TeamDraft {
 export function draftToInput(draft: TeamDraft): TeamInput {
   return {
     name: draft.name,
-    members: draft.members.map((m) => ({ pokemonId: m.pokemon.id, moves: m.moves })),
+    members: draft.members.map((m) => ({
+      pokemonId: m.pokemon.id,
+      moves: m.moves,
+      ability: m.ability,
+      item: m.item,
+      nature: m.nature,
+    })),
     isPublic: draft.isPublic,
   };
 }

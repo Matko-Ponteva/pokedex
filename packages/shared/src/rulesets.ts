@@ -37,7 +37,7 @@ export const RULESETS: Record<RulesetId, Ruleset> = {
   standard: {
     id: "standard",
     name: "Standard",
-    description: `Single battle with teams of up to 6 Pokémon. All Pokémon are set to level ${LEVEL}.`,
+    description: `Single battle. Teams of up to 6 Pokémon. All Pokémon are set to level ${LEVEL}.`,
     level: LEVEL,
     format: "singles",
     minTeamSize: 1,

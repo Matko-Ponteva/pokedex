@@ -81,6 +81,7 @@ export const GUARD_MOVES: Readonly<Record<string, string>> = {
   "quick-guard": "Quick Guard",
   "crafty-shield": "Crafty Shield",
   "mat-block": "Mat Block",
+  "wide-guard": "Wide Guard",
 };
 
 /** Damaging moves that clear hazards and Leech Seed from the user's side */

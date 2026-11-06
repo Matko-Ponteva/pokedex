@@ -10,6 +10,8 @@ export type Volatiles = {
   /** Turns of confusion left */
   confusion?: number;
   infatuated?: boolean;
+  /** The slot of the Pokémon it fell for; love ends when that one leaves the field */
+  infatuatedBy?: number;
   /** Yawn: falls asleep when this reaches 0 at the end of a turn */
   yawn?: number;
   nightmare?: boolean;
@@ -27,9 +29,11 @@ export type Volatiles = {
   grudge?: boolean;
   /** Mean Look, Block, Spider Web, Octolock: can't switch out */
   trapped?: boolean;
+  /** The slot of the Pokémon that trapped it; the trap ends when that one leaves the field */
+  trappedBy?: number;
   octolock?: boolean;
-  /** Wrap, Fire Spin and the like: hurt each turn and can't switch out */
-  bound?: { move: string; turns: number };
+  /** Wrap, Fire Spin and the like: hurt each turn and can't switch out. `by` is the binder's slot. */
+  bound?: { move: string; turns: number; by?: number };
   magnetRise?: number;
   telekinesis?: number;
   /** Lock-On, Mind Reader: the next move can't miss */
@@ -56,6 +60,10 @@ export type Volatiles = {
   truantLoaf?: boolean;
   /** The move it used last and how many times in a row before that, for the Metronome item */
   metronomeStreak?: { move: string; count: number };
+  /** Commander: Tatsugiri hiding inside its Dondozo ally, out of reach and not moving */
+  commanding?: boolean;
+  /** Commander: the Dondozo a Tatsugiri is hiding in */
+  commanded?: boolean;
 };
 
 export type Gender = "male" | "female";
@@ -121,12 +129,12 @@ export const SHIELDS: Readonly<Record<string, { blocksStatus: boolean; punish?: 
 };
 
 /** Moves that can't do anything in this app, and why */
-export const UNSUPPORTED_REASONS: Readonly<Record<string, string>> = Object.fromEntries(
-  [
-    "helping-hand", "follow-me", "rage-powder", "ally-switch", "after-you", "quash", "spotlight", "wide-guard", "dragon-cheer",
-    "happy-hour",
-  ].map((name) => [name, "Only does something in double battles"])
-);
+export const UNSUPPORTED_REASONS: Readonly<Record<string, string>> = {};
+
+/** Moves that need an ally, so they fail in a single battle */
+export const ALLY_MOVES: ReadonlySet<string> = new Set([
+  "helping-hand", "ally-switch", "aromatic-mist", "coaching", "dragon-cheer", "hold-hands",
+]);
 
 /** Status moves that move items or abilities around */
 export const ITEM_ABILITY_MOVES: ReadonlySet<string> = new Set([
@@ -143,6 +151,10 @@ export const STATUS_MOVE_NAMES: ReadonlySet<string> = new Set([
   "take-heart", "victory-dance", "shelter", "belly-drum", "acupressure", "conversion", "camouflage", "magic-coat",
   "snatch", "healing-wish", "lunar-dance", "revival-blessing", "wish", "swagger", "flatter", "tar-shot", "power-trick",
   "power-shift",
+  // Double battle moves
+  "helping-hand", "follow-me", "rage-powder", "spotlight", "ally-switch", "after-you", "quash", "dragon-cheer",
+  "happy-hour", "aromatic-mist", "coaching", "heal-pulse", "floral-healing", "life-dew", "jungle-healing", "gear-up",
+  "magnetic-flux", "decorate", "hold-hands",
 ]);
 
 /** Status moves that only help the user, which Snatch can steal */
@@ -222,6 +234,7 @@ export function volatileTags(combatant: Combatant): string[] {
   if (v.flashFire) tags.push("Flash Fire");
   if (v.abilitySuppressed) tags.push("Ability suppressed");
   if (v.embargo) tags.push("Embargo");
+  if (v.commanding) tags.push("Commanding");
   return tags;
 }
 
@@ -360,6 +373,30 @@ export function statusMoveNote(move: MoveInfo): string | null {
     fling: "Throws your item; power depends on it",
     "natural-gift": "Uses your berry; type depends on it",
     "first-impression": "First turn out only",
+    // Double battle moves
+    "helping-hand": "Ally's move this turn is 50% stronger (doubles)",
+    "follow-me": "Draws the foes' moves to you this turn (doubles)",
+    "rage-powder": "Draws the foes' moves to you this turn (doubles)",
+    spotlight: "Draws moves to the target this turn (doubles)",
+    "ally-switch": "Swaps places with your ally (doubles)",
+    "after-you": "The target moves right after you (doubles)",
+    quash: "The target moves last this turn (doubles)",
+    "wide-guard": "Protects your side from moves that hit several Pokémon",
+    "quick-guard": "Protects your side from priority moves",
+    "crafty-shield": "Protects your side from status moves",
+    "mat-block": "Protects your side from attacks; first turn out only",
+    "dragon-cheer": "Raises your ally's critical-hit chance (doubles)",
+    "aromatic-mist": "+1 Sp. Def to your ally (doubles)",
+    coaching: "+1 Attack and Defense to your ally (doubles)",
+    "heal-pulse": "Heals the target by half its max HP",
+    "floral-healing": "Heals the target by half its max HP",
+    "life-dew": "Heals you and your ally 1/4",
+    "jungle-healing": "Heals you and your ally 1/4 and cures status",
+    "gear-up": "+1 Atk and Sp. Atk to Plus and Minus Pokémon on your side",
+    "magnetic-flux": "+1 Def and Sp. Def to Plus and Minus Pokémon on your side",
+    decorate: "+2 Attack and Sp. Atk to the target",
+    "hold-hands": "Does nothing, but it's nice (doubles)",
+    "happy-hour": "Does nothing in battle",
   };
   return notes[move.name] ?? null;
 }

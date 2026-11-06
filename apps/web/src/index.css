@@ -289,6 +289,26 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 .move-pp.empty { color: #b3261e; font-weight: 700; }
 .battle-note { margin: 6px 0 0; font-size: 13px; color: #6b7088; }
 .info-box.info-empty { background: rgba(255, 255, 255, 0.8); }
+
+/* Double battles: two smaller Pokémon per side, staggered, with stacked compact info boxes in the corners */
+.doubles .slot-top.pos-0 { left: 470px; top: 200px; }
+.doubles .slot-top.pos-1 { left: 668px; top: 224px; }
+.doubles .slot-bottom.pos-0 { left: 150px; top: 440px; }
+.doubles .slot-bottom.pos-1 { left: 385px; top: 462px; }
+.doubles .slot-top .platform { width: 200px; height: 50px; }
+.doubles .slot-bottom .platform { width: 260px; height: 66px; }
+.doubles .slot-top .floats { bottom: 80px; }
+.doubles .slot-bottom .floats { bottom: 115px; }
+.info-stack { position: absolute; width: min(38%, 260px); display: grid; gap: 4px; }
+.info-stack-top { top: 3%; left: 2%; }
+.info-stack-bottom { bottom: 3%; right: 2%; }
+.info-box.compact { position: static; width: auto; padding: 4px 9px; gap: 1px; border-radius: 10px; font-size: clamp(9px, 1.6cqw, 13px); }
+.info-box.compact .hp { grid-template-columns: 1fr auto; align-items: center; column-gap: 6px; }
+.info-box.compact .hp-track { height: 6px; }
+.battle-move-target { font-size: 12px; font-weight: 700; color: #8a4b00; }
+.target-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.target-picker .target-foe { background: #c62828; }
+.target-picker .target-ally { background: #2e7d32; }
 .sprite-holder.behind-sub .battle-sprite { opacity: 0.55; filter: drop-shadow(0 0 6px #b388ff); }
 @keyframes weather-in { from { opacity: 0; } }
 @keyframes rain-fall { to { background-position: -24px 92px, 0 0; } }

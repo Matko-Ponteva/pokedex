@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import {
   battleChallengeInputSchema, battleChatInputSchema, battleChatModeInputSchema, battleForfeitInputSchema,
   battleActionInputSchema, battleIdInputSchema, battleRespondInputSchema,
-  canSeeChat, choiceError, defaultChoice, healthyBench, replacementError, resolveReplacements, resolveTurn, rulesetOf, spectatorView, viewFor,
+  activePerSide, canSeeChat, defaultChoice, healthyBench, isReplacing, replacementsError, replacingPositions, resolveReplacements,
+  resolveTurn, rulesetOf, sideChoicesError, slotActs, slotOf, spectatorView, viewFor,
   type Battle, type BattleChoice, type BattleSide, type SideIndex, type ChallengeInfo, type ChatMessage, type ChatMode, type Combatant,
   type LiveBattleInfo, type OnlineUser, type SpectatorView,
 } from "@pokedex/shared";
@@ -30,9 +31,12 @@ type PendingChallenge = {
   timer: Timer;
 };
 
+/** What a player chose for each of their positions; null for positions with nothing to do */
+type PositionChoices = (BattleChoice | null)[];
+
 type LiveBattle = {
   battle: Battle;
-  choices: Map<number, BattleChoice>;
+  choices: Map<number, PositionChoices>;
   turnEndsAt: number | null;
   turnTimer: Timer | null;
   timeouts: Map<number, number>;
@@ -203,8 +207,36 @@ function endBattle(io: AppServer, live: LiveBattle, winnerId: number, line: stri
 
 /** Players who still have to decide: both in a normal turn, only those replacing a fainted Pokémon otherwise */
 function deciders(live: LiveBattle): BattleSide[] {
-  const { replacing } = live.battle;
-  return live.battle.sides.filter((_, index) => !replacing || replacing[index]);
+  const { battle } = live;
+  return battle.sides.filter((_, index) => !battle.replacing || isReplacing(battle, index as SideIndex));
+}
+
+/** Per-slot choices for the engine, out of each player's per-position choices */
+function bySlot<T>(live: LiveBattle, pick: (side: SideIndex, choices: PositionChoices | undefined, position: number) => T | null): (T | null)[] {
+  const slots: (T | null)[] = [];
+  live.battle.sides.forEach((side, index) => {
+    const choices = live.choices.get(side.userId);
+    const positions = side.actives?.length ?? 1;
+    for (let position = 0; position < positions; position++) slots[slotOf(index as SideIndex, position)] = pick(index as SideIndex, choices, position);
+  });
+  return slots;
+}
+
+/** What a player's Pokémon do when the player runs out of time: the first usable move, or the first healthy replacements */
+function defaultChoices(battle: Battle, side: SideIndex): PositionChoices {
+  const positions = battle.sides[side].actives?.length ?? 1;
+  if (battle.replacing) {
+    const bench = healthyBench(battle.sides[side]);
+    const replacing = replacingPositions(battle, side);
+    return Array.from({ length: positions }, (_, position) => {
+      const order = replacing.indexOf(position);
+      return order === -1 ? null : { kind: "switch" as const, index: bench[order] };
+    });
+  }
+  return Array.from({ length: positions }, (_, position) => {
+    const slot = slotOf(side, position);
+    return slotActs(battle, slot) ? defaultChoice(battle, slot) : null;
+  });
 }
 
 function everyoneDecided(live: LiveBattle): boolean {
@@ -212,18 +244,15 @@ function everyoneDecided(live: LiveBattle): boolean {
 }
 
 function resolveAndAdvance(io: AppServer, live: LiveBattle) {
-  const { replacing } = live.battle;
-  if (replacing) {
-    const [first, second] = live.battle.sides.map((side, index) => {
-      const choice = live.choices.get(side.userId);
-      return replacing[index] && choice?.kind === "switch" ? choice.index : null;
+  if (live.battle.replacing) {
+    const picks = bySlot(live, (_, choices, position) => {
+      const choice = choices?.[position];
+      return choice?.kind === "switch" ? choice.index : null;
     });
-    live.battle = resolveReplacements(live.battle, [first, second]);
+    live.battle = resolveReplacements(live.battle, picks);
   } else {
-    const [first, second] = live.battle.sides.map(
-      (side, index) => live.choices.get(side.userId) ?? defaultChoice(live.battle, index as SideIndex)
-    );
-    live.battle = resolveTurn(live.battle, [first, second], Math.random);
+    const choices = bySlot(live, (side, choices, position) => (choices ?? defaultChoices(live.battle, side))[position] ?? null);
+    live.battle = resolveTurn(live.battle, choices, Math.random);
   }
   live.choices.clear();
   if (live.battle.winner !== null) stopBattle(io, live);
@@ -251,13 +280,13 @@ function onTurnTimeout(io: AppServer, live: LiveBattle) {
       return;
     }
 
+    const index = live.battle.sides.indexOf(side) as SideIndex;
     if (live.battle.replacing) {
       appendLog(live, `${side.displayName} ran out of time, so their next Pokémon was picked for them.`);
-      live.choices.set(side.userId, { kind: "switch", index: healthyBench(side)[0] });
     } else {
       appendLog(live, `${side.displayName} ran out of time, so their Pokémon used its first usable move.`);
-      live.choices.set(side.userId, defaultChoice(live.battle, live.battle.sides.indexOf(side) as SideIndex));
     }
+    live.choices.set(side.userId, defaultChoices(live.battle, index));
   }
 
   resolveAndAdvance(io, live);
@@ -371,6 +400,8 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
       }
       clearTimeout(challenge.timer);
       challenges.delete(challengeId);
+      // In a double battle the first two team members lead (each side gets its own array)
+      const leads = () => (activePerSide(challenge.info.ruleset.format) === 2 ? { actives: [0, 1] } : {});
 
       const live: LiveBattle = {
         battle: {
@@ -383,8 +414,8 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
             `Rules: ${challenge.info.ruleset.name}. ${challenge.info.ruleset.description}`,
           ],
           sides: [
-            { userId: challenger.id, displayName: challenger.displayName, team: challenge.fromTeam, active: 0 },
-            { userId: me.id, displayName: me.displayName, team: myTeam, active: 0 },
+            { userId: challenger.id, displayName: challenger.displayName, team: challenge.fromTeam, active: 0, ...leads() },
+            { userId: me.id, displayName: me.displayName, team: myTeam, active: 0, ...leads() },
           ],
         },
         choices: new Map(),
@@ -410,25 +441,26 @@ export function registerBattleHandlers(io: AppServer, socket: AppSocket) {
 
   socket.on("battle:action", (input, reply) =>
     respond(reply, async () => {
-      const { battleId, choice } = battleActionInputSchema.parse(input);
+      const { battleId, choices } = battleActionInputSchema.parse(input);
       const live = battles.get(battleId);
       const side = live?.battle.sides.find((s) => s.userId === me.id);
       if (!live || !side) throw new HttpError(404, "This battle isn't available");
       if (live.battle.winner !== null) throw new HttpError(409, "The battle is over");
       if (live.choices.has(me.id)) throw new HttpError(409, "You've already chosen what to do this turn");
+      const index = live.battle.sides.indexOf(side) as SideIndex;
       if (live.battle.replacing) {
         if (!deciders(live).includes(side)) {
           throw new HttpError(409, "Wait for your opponent to send out their next Pokémon");
         }
-        if (choice.kind !== "switch") throw new HttpError(400, "Choose a Pokémon to send in");
-        const error = replacementError(side, choice.index);
+        const picks = choices.map((choice) => (choice?.kind === "switch" ? choice.index : null));
+        const error = replacementsError(live.battle, index, picks);
         if (error) throw new HttpError(400, error);
       } else {
-        const error = choiceError(live.battle, live.battle.sides.indexOf(side) as SideIndex, choice);
+        const error = sideChoicesError(live.battle, index, choices);
         if (error) throw new HttpError(400, error);
       }
 
-      live.choices.set(me.id, choice);
+      live.choices.set(me.id, choices);
       live.timeouts.set(me.id, 0);
       if (everyoneDecided(live)) resolveAndAdvance(io, live);
       else sendState(io, live);

@@ -196,6 +196,10 @@ const battleItems: Record<string, Omit<HeldItem, "category">> = {
   "blunder-policy": { name: "Blunder Policy", description: "+2 Speed after missing, once" },
   "room-service": { name: "Room Service", description: "−1 Speed when Trick Room starts, once" },
   "loaded-dice": { name: "Loaded Dice", description: "Moves that hit 2–5 times hit 4–5 times, and don't miss after the first hit" },
+  "eject-pack": { name: "Eject Pack", description: "Switches out when its stats are lowered, once" },
+  "adrenaline-orb": { name: "Adrenaline Orb", description: "+1 Speed when hit by Intimidate, once" },
+  "mirror-herb": { name: "Mirror Herb", description: "Copies a foe's stat boosts, once" },
+  "ability-shield": { name: "Ability Shield", description: "Its ability can't be changed or suppressed" },
 };
 
 const statNames: Record<BoostStat, string> = {

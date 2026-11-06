@@ -102,6 +102,8 @@ export const moves = pgTable("moves", {
   flinchChance: integer("flinch_chance").notNull().default(0),
   minHits: integer("min_hits"),
   maxHits: integer("max_hits"),
+  /** Who the move aims at (PokéAPI's move target), for double battles */
+  target: text("target"),
   /** Bumped when we start reading more move data from PokéAPI, so older rows get refetched */
   dataVersion: integer("data_version").notNull().default(0),
 });

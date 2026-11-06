@@ -7,3 +7,17 @@ export const TYPE_COLORS: Record<PokemonType, string> = {
   rock: "#afa981", ghost: "#704170", dragon: "#5060e1", dark: "#624d4e",
   steel: "#60a1b8", fairy: "#ef70ef",
 };
+const relativeLuminance = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/** Whether dark text reads better than white text on this type's color (WCAG contrast) */
+export const isLightType = (type: PokemonType) => {
+  const l = relativeLuminance(TYPE_COLORS[type]);
+  const darkText = relativeLuminance("#1a1d29");
+  return (l + 0.05) / (darkText + 0.05) > 1.05 / (l + 0.05);
+};

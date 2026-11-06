@@ -4,8 +4,8 @@ import { db } from "../db/client.ts";
 import { moves } from "../db/schema.ts";
 import { fetchMove, fetchMoveNames } from "../lib/pokeapi.ts";
 
-/** Rows saved with an older version are missing data (accuracy, effects, priority, PP, hit counts) and get refetched */
-const MOVE_DATA_VERSION = 5;
+/** Rows saved with an older version are missing data (accuracy, effects, priority, PP, hit counts, targets) and get refetched */
+const MOVE_DATA_VERSION = 6;
 
 function toMoveInfo(row: typeof moves.$inferSelect): MoveInfo {
   const { dataVersion: _version, ...info } = row;
@@ -40,6 +40,7 @@ export async function getMoves(names: string[]): Promise<MoveInfo[]> {
       flinchChance: move.flinchChance ?? 0,
       minHits: move.minHits ?? null,
       maxHits: move.maxHits ?? null,
+      target: move.target ?? null,
       dataVersion: MOVE_DATA_VERSION,
     };
     await db.insert(moves).values(values).onConflictDoUpdate({ target: moves.name, set: values });

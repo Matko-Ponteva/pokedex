@@ -44,6 +44,8 @@ export type MoveInfo = {
   /** How many times a multi-hit move hits (Double Kick: 2–2, Bullet Seed: 2–5); missing means once */
   minHits?: number | null;
   maxHits?: number | null;
+  /** Who the move aims at (PokéAPI's move target), which matters in double battles; see targets.ts */
+  target?: string | null;
 };
 
 export const BOOST_STATS = ["attack", "defense", "special-attack", "special-defense", "speed", "accuracy", "evasion"] as const;

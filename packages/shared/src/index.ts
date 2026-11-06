@@ -18,6 +18,7 @@ export * from "./items.ts";
 export * from "./natures.ts";
 export * from "./chat.ts";
 export * from "./rulesets.ts";
+export * from "./targets.ts";
 
 export const DEFAULT_PAGE_SIZE = 24;
 

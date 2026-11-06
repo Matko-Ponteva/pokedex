@@ -223,5 +223,6 @@ export async function fetchMove(name: string): Promise<MoveInfo> {
     flinchChance: move.meta?.flinch_chance ?? 0,
     minHits: move.meta?.min_hits ?? null,
     maxHits: move.meta?.max_hits ?? null,
+    target: move.target.name,
   };
 }

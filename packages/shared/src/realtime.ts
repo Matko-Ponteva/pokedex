@@ -24,17 +24,26 @@ export const battleRespondInputSchema = z.object({
 });
 export type BattleRespondInput = z.infer<typeof battleRespondInputSchema>;
 
+const battleChoiceSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("move"),
+    index: z.number().int().min(0).max(3),
+    /** Who comes in after U-turn or Baton Pass, or who Revival Blessing revives */
+    target: z.number().int().min(0).max(5).optional(),
+    /** The slot on the field the move aims at, in a double battle */
+    targetSlot: z.number().int().min(0).max(3).optional(),
+  }),
+  z.object({ kind: z.literal("switch"), index: z.number().int().min(0).max(5) }),
+]);
+
 export const battleActionInputSchema = z.object({
   battleId: z.uuid(),
-  choice: z.discriminatedUnion("kind", [
-    z.object({
-      kind: z.literal("move"),
-      index: z.number().int().min(0).max(3),
-      /** Who comes in after U-turn or Baton Pass, or who Revival Blessing revives */
-      target: z.number().int().min(0).max(5).optional(),
-    }),
-    z.object({ kind: z.literal("switch"), index: z.number().int().min(0).max(5) }),
-  ]),
+  /**
+   * One choice for each of the player's positions (one in a single battle, two in a double battle), null for a
+   * position that has nothing to do (its Pokémon fainted with nobody left to replace it). While replacing fainted
+   * Pokémon, the positions being replaced get a switch.
+   */
+  choices: z.array(battleChoiceSchema.nullable()).min(1).max(2),
 });
 export type BattleActionInput = z.infer<typeof battleActionInputSchema>;
 

@@ -1,4 +1,4 @@
-import { abilitySlug, createCombatant, type Combatant, type PokemonDetail, type Ruleset } from "@pokedex/shared";
+import { abilitySlug, createCombatant, teamSizeError, type Combatant, type PokemonDetail, type Ruleset } from "@pokedex/shared";
 import { HttpError } from "../lib/errors.ts";
 import { getMetronomePool, getMoves } from "./moveService.ts";
 import { getPokemon } from "./pokemonService.ts";
@@ -7,6 +7,8 @@ import { assertLearnableMoves, getTeam } from "./teamService.ts";
 export async function loadCombatants(userId: number, teamId: number, ruleset: Ruleset): Promise<Combatant[]> {
   const team = await getTeam(userId, teamId);
   if (team.members.length === 0) throw new HttpError(400, "Choose a team with at least one Pokémon");
+  const sizeError = teamSizeError(ruleset, team.members.length);
+  if (sizeError) throw new HttpError(400, `${sizeError}, and "${team.name}" has ${team.members.length}`);
 
   const moveNames = team.members.flatMap((member) => member.moves);
   const [details, moves] = await Promise.all([

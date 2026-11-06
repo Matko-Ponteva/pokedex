@@ -7,7 +7,7 @@ import { BattleField, HpBar, StatusPill } from "../components/battle/BattleField
 import { BattleSidebar } from "../components/battle/BattleSidebar";
 import { useTurnPlayback } from "../components/battle/useTurnPlayback";
 import { secondsUntil, useNow } from "../components/battle/time";
-import { TYPE_COLORS } from "../data/types";
+import { TYPE_COLORS, isLightType } from "../data/types";
 import { useCurrentUser } from "../hooks/useAuth";
 import { formatMove, formatPokemonName } from "../lib/format";
 import { sendChat, setChatMode } from "../realtime/battleActions";
@@ -249,11 +249,12 @@ function PlayerBattle({ battle }: { battle: BattleView }) {
                       type="button"
                       className={[
                         "battle-move",
+                        isLightType(move.type) ? "on-light" : "on-dark",
                         move.category === "status" ? "status-move" : "",
                         lock ? "locked" : "",
                         pending?.index === index ? "pending" : "",
                       ].join(" ")}
-                      style={{ borderLeftColor: TYPE_COLORS[move.type] }}
+                      style={{ backgroundColor: TYPE_COLORS[move.type] }}
                       disabled={!canAct || Boolean(lock)}
                       title={lock ?? undefined}
                       onClick={() => pickMove(index)}

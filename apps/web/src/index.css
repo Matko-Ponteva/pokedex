@@ -407,9 +407,19 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 .battle-moves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .battle-move {
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left;
-  background: #fff; color: #1a1d29; border: 1px solid #dfe2ec; border-left: 8px solid #9fa19f; border-radius: 10px;
+  background: #9fa19f; color: #1a1d29; border: 2px solid rgba(0, 0, 0, 0.25); border-radius: 10px;
   padding: 10px 14px; box-shadow: 0 2px 0 #dfe2ec; transition: transform 0.1s, box-shadow 0.1s;
 }
+/* The card is filled with the move's type color; text flips between dark and white for contrast */
+.battle-move.on-light { --move-text: #1a1d29; }
+.battle-move.on-dark { --move-text: #fff; }
+.battle-move.on-dark .battle-move-name { text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3); }
+.battle-move .battle-move-info, .battle-move .move-category, .battle-move .battle-move-effect { color: var(--move-text); }
+.battle-move { color: var(--move-text, #1a1d29); }
+/* The type badge matches the card, so outline it to keep it visible */
+.battle-move .type-badge { color: var(--move-text); box-shadow: inset 0 0 0 1.5px var(--move-text); }
+/* Warnings sit on a light chip so the red stays readable on any type color */
+.battle-move .battle-move-lock, .battle-move .move-pp.empty { background: #fff; color: #b3261e; border-radius: 6px; padding: 1px 6px; }
 .battle-move:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 4px 0 #dfe2ec; }
 .battle-move-name { font-weight: 700; font-size: 17px; }
 .battle-move-info { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #6b7088; }
@@ -431,7 +441,6 @@ a.button.secondary-link { background: #e2e4ec; color: #1a1d29; }
 .bench-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #4058c8; margin-left: auto; }
 .move-category { font-weight: 700; color: #3a405c; }
 .battle-move-effect { font-size: 12px; color: #4058c8; font-weight: 600; }
-.battle-move.status-move { background: #fafbff; }
 .bench-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .bench-name { display: flex; align-items: center; gap: 4px; font-weight: 600; }
 .bench .hp-text { font-size: 11px; }

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   BOOST_STATS, FIELD_EFFECT_NAMES, abilityName, itemName, HAZARD_NAMES, SIDE_CONDITION_NAMES, TERRAIN_NAMES, WEATHER_NAMES, battleSprites,
   type BattleEvent, type BoostStat, type FieldEffect, type FieldState, type Hazard, type ShownCombatant, type SideCondition,
-  type SideField, type SideIndex, type StatusCondition, type Weather,
+  type SideField, type Slot as FieldSlot, type StatusCondition, type Weather, slotPosition, slotSide,
 } from "@pokedex/shared";
 import { formatPokemonName } from "../../lib/format";
 
@@ -52,17 +52,33 @@ const SPRITE_FIT = {
   bottom: { scale: 2.1, maxHeight: 245 },
 };
 
+/** Smaller, so two Pokémon fit on each side in a double battle */
+const DOUBLES_SPRITE_FIT = {
+  top: { scale: 1.4, maxHeight: 135 },
+  bottom: { scale: 1.75, maxHeight: 185 },
+};
+
 /** Sprites remount to restart animations, so remember their sizes to avoid a flicker */
 const naturalHeights = new Map<string, number>();
 
-export function BattleSprite({ spriteUrl, position, name }: { spriteUrl: string; position: "top" | "bottom"; name: string }) {
+export function BattleSprite({
+  spriteUrl,
+  position,
+  name,
+  doubles = false,
+}: {
+  spriteUrl: string;
+  position: "top" | "bottom";
+  name: string;
+  doubles?: boolean;
+}) {
   const candidates = battleSprites(spriteUrl)[position === "bottom" ? "back" : "front"];
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState<number | null>(null);
   const naturalHeight = naturalHeights.get(candidates[index]) ?? loaded;
   // Without any back sprite, show the front one mirrored
   const mirrored = position === "bottom" && candidates.length > 1 && index === candidates.length - 1;
-  const fit = SPRITE_FIT[position];
+  const fit = (doubles ? DOUBLES_SPRITE_FIT : SPRITE_FIT)[position];
   const scale = naturalHeight ? Math.min(fit.scale, fit.maxHeight / naturalHeight) : fit.scale;
 
   return (
@@ -83,8 +99,9 @@ export function BattleSprite({ spriteUrl, position, name }: { spriteUrl: string;
   );
 }
 
+/** One Pokémon's place on the field */
 export type FieldSide = {
-  side: SideIndex;
+  slot: FieldSlot;
   trainer: string;
   combatant: ShownCombatant;
   down: boolean;
@@ -180,8 +197,7 @@ function floatsFor(event: BattleEvent): Float[] {
   }
 }
 
-function animationFor(event: BattleEvent | null, position: Position, eventPosition: Position): string {
-  if (!event || position !== eventPosition) return "";
+function animationFor(event: BattleEvent): string {
   switch (event.kind) {
     case "move":
       return "anim-lunge";
@@ -267,22 +283,39 @@ function SideChips({ sideField }: { sideField: SideField | undefined }) {
   );
 }
 
-function InfoBox({ field, position, sideField }: { field: FieldSide; position: Position; sideField?: SideField }) {
+function hasSideChips(sideField: SideField | undefined): sideField is SideField {
+  return Boolean(sideField && (Object.keys(sideField.conditions).length > 0 || Object.keys(sideField.hazards).length > 0));
+}
+
+function InfoBox({
+  field,
+  className,
+  sideField,
+  showTrainer = true,
+}: {
+  field: FieldSide;
+  className: string;
+  /** Only given to one box per side, so a side's conditions show once */
+  sideField?: SideField;
+  showTrainer?: boolean;
+}) {
   const { combatant } = field;
   // The side's conditions stay visible while the trainer picks the next Pokémon
   if (field.down) {
-    return sideField && (Object.keys(sideField.conditions).length > 0 || Object.keys(sideField.hazards).length > 0) ? (
-      <div className={`info-box info-${position} info-empty`}>
+    return hasSideChips(sideField) ? (
+      <div className={`${className} info-empty`}>
         <SideChips sideField={sideField} />
       </div>
     ) : null;
   }
   return (
-    <div className={`info-box info-${position}`}>
-      <div className="info-trainer">
-        <span>{field.trainer}</span>
-        <PartyBalls party={field.party} />
-      </div>
+    <div className={className}>
+      {showTrainer && (
+        <div className="info-trainer">
+          <span>{field.trainer}</span>
+          <PartyBalls party={field.party} />
+        </div>
+      )}
       <div className="info-name">
         <strong>
           {formatPokemonName(combatant.name)}
@@ -313,33 +346,61 @@ function InfoBox({ field, position, sideField }: { field: FieldSide; position: P
   );
 }
 
-function Slot({
+/** A double battle's info boxes for one side, stacked in its corner */
+function InfoStack({ fields, position, sideField }: { fields: FieldSide[]; position: Position; sideField?: SideField }) {
+  // The trainer's name and party go on the first Pokémon still standing
+  const first = fields.findIndex((field) => !field.down);
+  return (
+    <div className={`info-stack info-stack-${position}`}>
+      {fields.map((field, i) => (
+        <InfoBox
+          key={field.slot}
+          field={field}
+          className="info-box compact"
+          showTrainer={i === first}
+          // A side's conditions show once, under its last Pokémon
+          sideField={i === fields.length - 1 ? sideField : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SlotView({
   field,
   position,
+  doubles,
   event,
   eventKey,
 }: {
   field: FieldSide;
   position: Position;
+  doubles: boolean;
   event: BattleEvent | null;
   eventKey: string;
 }) {
-  const eventPosition: Position | null = event ? (event.side === field.side ? position : position === "top" ? "bottom" : "top") : null;
-  const animation = eventPosition ? animationFor(event, position, eventPosition) : "";
-  const mine = eventPosition === position && event !== null;
+  // Events without a slot come from single battles, where the side is the slot
+  const mine = event !== null && (event.slot ?? event.side) === field.slot;
+  const animation = mine ? animationFor(event) : "";
   const effect = mine ? particlesFor(event) : null;
-  const leaving = mine && (event?.kind === "faint" || event?.kind === "withdraw");
-  const floats = mine && event ? floatsFor(event).filter((float) => float.text) : [];
+  const leaving = mine && (event.kind === "faint" || event.kind === "withdraw");
+  const floats = mine ? floatsFor(event).filter((float) => float.text) : [];
   const { combatant } = field;
 
   return (
-    <div className={`slot slot-${position}`}>
+    <div className={`slot slot-${position}${doubles ? ` pos-${slotPosition(field.slot)}` : ""}`}>
       <div className="platform" />
       <div
         key={animation ? eventKey : "still"}
         className={`sprite-holder ${animation} ${field.down && !leaving ? "down" : ""} ${combatant.status ? `cond-${combatant.status}` : ""} ${combatant.substitute ? "behind-sub" : ""}`}
       >
-        <BattleSprite key={combatant.spriteUrl} spriteUrl={combatant.spriteUrl} position={position} name={combatant.name} />
+        <BattleSprite
+          key={combatant.spriteUrl}
+          spriteUrl={combatant.spriteUrl}
+          position={position}
+          name={combatant.name}
+          doubles={doubles}
+        />
       </div>
       {effect && (
         <div key={`fx-${eventKey}`} className={`status-fx fx-${effect}`} aria-hidden="true">
@@ -363,6 +424,10 @@ function Slot({
   );
 }
 
+/**
+ * The battle arena. `top` and `bottom` list each side's Pokémon by position: one each in a single battle, two in a
+ * double battle (position 0 on the left).
+ */
 export function BattleField({
   top,
   bottom,
@@ -373,8 +438,8 @@ export function BattleField({
   weatherTurns = null,
   field = null,
 }: {
-  top: FieldSide;
-  bottom: FieldSide;
+  top: FieldSide[];
+  bottom: FieldSide[];
   event: BattleEvent | null;
   eventKey: string;
   banner?: string | null;
@@ -395,17 +460,23 @@ export function BattleField({
     return () => observer.disconnect();
   }, []);
 
+  const doubles = top.length > 1 || bottom.length > 1;
   const shake = event?.kind === "damage" && (event.critical || event.effectiveness > 1);
   const terrain = field?.terrain ?? null;
   // Fairy Lock is shown through the switching message instead
   const effects = (Object.entries(field?.effects ?? {}) as [FieldEffect, number][]).filter(([effect]) => effect !== "fairy-lock");
+  const sideFieldOf = (fields: FieldSide[]) => (fields.length > 0 ? field?.sides[slotSide(fields[0].slot)] : undefined);
 
   return (
-    <div ref={arena} className="arena">
+    <div ref={arena} className={doubles ? "arena doubles" : "arena"}>
       <div className={shake ? "shaker shake" : "shaker"} key={shake ? eventKey : "still"}>
         <div className="stage" style={{ transform: `scale(${scale})` }}>
-          <Slot field={top} position="top" event={event} eventKey={eventKey} />
-          <Slot field={bottom} position="bottom" event={event} eventKey={eventKey} />
+          {top.map((one) => (
+            <SlotView key={one.slot} field={one} position="top" doubles={doubles} event={event} eventKey={eventKey} />
+          ))}
+          {bottom.map((one) => (
+            <SlotView key={one.slot} field={one} position="bottom" doubles={doubles} event={event} eventKey={eventKey} />
+          ))}
         </div>
       </div>
       {terrain && <div key={terrain.kind} className={`terrain-fx terrain-${terrain.kind}`} aria-hidden="true" />}
@@ -430,8 +501,17 @@ export function BattleField({
           ))}
         </div>
       )}
-      <InfoBox field={top} position="top" sideField={field?.sides[top.side]} />
-      <InfoBox field={bottom} position="bottom" sideField={field?.sides[bottom.side]} />
+      {doubles ? (
+        <>
+          <InfoStack fields={top} position="top" sideField={sideFieldOf(top)} />
+          <InfoStack fields={bottom} position="bottom" sideField={sideFieldOf(bottom)} />
+        </>
+      ) : (
+        <>
+          {top[0] && <InfoBox field={top[0]} className="info-box info-top" sideField={sideFieldOf(top)} />}
+          {bottom[0] && <InfoBox field={bottom[0]} className="info-box info-bottom" sideField={sideFieldOf(bottom)} />}
+        </>
+      )}
       {banner && <p className="arena-banner">{banner}</p>}
     </div>
   );

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
-import type { ShownCombatant, SpectatorView } from "@pokedex/shared";
+import type { PublicSide, SpectatorView } from "@pokedex/shared";
 import { BattleField } from "../components/battle/BattleField";
 import { BattleSidebar } from "../components/battle/BattleSidebar";
-import { useTurnPlayback } from "../components/battle/useTurnPlayback";
+import { bySlot, fieldSidesOf, useTurnPlayback } from "../components/battle/useTurnPlayback";
 import { secondsUntil, useNow } from "../components/battle/time";
 import { useCurrentUser } from "../hooks/useAuth";
 import { sendChat } from "../realtime/battleActions";
@@ -50,7 +50,8 @@ function Spectating({ view }: { view: SpectatorView }) {
   const { data: user } = useCurrentUser();
   const chat = useBattleChat(view.id);
   const now = useNow();
-  const final: [ShownCombatant, ShownCombatant] = [view.sides[0].active, view.sides[1].active];
+  const activesOf = (side: PublicSide) => side.actives ?? [side.active];
+  const final = bySlot([activesOf(view.sides[0]), activesOf(view.sides[1])]);
   const playback = useTurnPlayback({
     lastTurn: view.lastTurn,
     log: view.log,
@@ -97,22 +98,8 @@ function Spectating({ view }: { view: SpectatorView }) {
       <div className="battle-layout">
         <div className="battle-main">
           <BattleField
-            top={{
-              side: 1,
-              trainer: second.displayName,
-              combatant: playback.sides[1],
-              down: playback.down[1],
-              party: party(1),
-              showHpNumbers: false,
-            }}
-            bottom={{
-              side: 0,
-              trainer: first.displayName,
-              combatant: playback.sides[0],
-              down: playback.down[0],
-              party: party(0),
-              showHpNumbers: false,
-            }}
+            top={fieldSidesOf(playback, 1, { trainer: second.displayName, party: party(1), showHpNumbers: false })}
+            bottom={fieldSidesOf(playback, 0, { trainer: first.displayName, party: party(0), showHpNumbers: false })}
             event={playback.event}
             eventKey={playback.eventKey}
             banner={!playback.playing && finished ? `${winnerName ?? "Someone"} wins!` : null}

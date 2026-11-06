@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import type { BattleEvent, FieldState, ShownCombatant, TurnRecord, Weather } from "@pokedex/shared";
-
-type Pair<T> = [T, T];
+import {
+  slotOf, slotPosition, slotSide, type BattleEvent, type FieldState, type ShownCombatant, type SideIndex, type TurnRecord, type Weather,
+} from "@pokedex/shared";
+import type { FieldSide } from "./BattleField";
 
 /** How long each event stays on screen, in milliseconds */
 const DURATION: Record<BattleEvent["kind"], number> = {
@@ -38,10 +39,10 @@ const DURATION: Record<BattleEvent["kind"], number> = {
 };
 
 export type Playback = {
-  /** The active Pokémon of each battle side, as currently shown */
-  sides: Pair<ShownCombatant>;
-  /** Sides whose Pokémon has fainted and left the field */
-  down: Pair<boolean>;
+  /** The Pokémon in each slot, as currently shown */
+  sides: ShownCombatant[];
+  /** Slots whose Pokémon has fainted and left the field */
+  down: boolean[];
   event: BattleEvent | null;
   /** Changes with every event, so animations restart */
   eventKey: string;
@@ -54,8 +55,9 @@ export type Playback = {
   field: FieldState | null;
 };
 
-function applyEvent(sides: Pair<ShownCombatant>, down: Pair<boolean>, event: BattleEvent) {
-  const side = event.side;
+function applyEvent(sides: ShownCombatant[], down: boolean[], event: BattleEvent) {
+  // Events from before slots existed only name the side, which is the slot in a single battle
+  const side = event.slot ?? event.side;
   switch (event.kind) {
     case "damage":
     case "status-damage":
@@ -97,8 +99,7 @@ function applyEvent(sides: Pair<ShownCombatant>, down: Pair<boolean>, event: Bat
       sides[side] = event.combatant;
       break;
     case "haze":
-      sides[0] = { ...sides[0], boosts: {} };
-      sides[1] = { ...sides[1], boosts: {} };
+      for (let slot = 0; slot < sides.length; slot++) sides[slot] = { ...sides[slot], boosts: {} };
       break;
   }
 }
@@ -120,7 +121,8 @@ function findEventLines(log: string[], texts: string[]): number {
 export function useTurnPlayback(input: {
   lastTurn: TurnRecord | null;
   log: string[];
-  final: Pair<ShownCombatant>;
+  /** The Pokémon in each slot once everything has played */
+  final: ShownCombatant[];
   finalWeather: Weather | null;
   finalField: FieldState | null;
 }): Playback {
@@ -153,7 +155,7 @@ export function useTurnPlayback(input: {
   if (!active || !lastTurn || !event) {
     return {
       sides: final,
-      down: [final[0].hp === 0, final[1].hp === 0],
+      down: final.map((combatant) => combatant.hp === 0),
       event: null,
       eventKey: "idle",
       playing: false,
@@ -163,8 +165,8 @@ export function useTurnPlayback(input: {
     };
   }
 
-  const sides: Pair<ShownCombatant> = [...lastTurn.start];
-  const down: Pair<boolean> = [sides[0].hp === 0, sides[1].hp === 0];
+  const sides = [...lastTurn.start];
+  const down = sides.map((combatant) => combatant.hp === 0);
   let weather = lastTurn.weather ?? null;
   let field = lastTurn.field ?? null;
   for (const played of lastTurn.events.slice(0, active.step + 1)) {
@@ -189,4 +191,22 @@ export function useTurnPlayback(input: {
     weather,
     field,
   };
+}
+
+/** Turns each side's Pokémon (listed by position) into one list by slot, as playback wants it */
+export function bySlot(sides: [ShownCombatant[], ShownCombatant[]]): ShownCombatant[] {
+  const positions = Math.min(sides[0].length, sides[1].length);
+  return Array.from({ length: positions * 2 }, (_, slot) => sides[slotSide(slot)][slotPosition(slot)]);
+}
+
+/** One side's places on the field, from what playback shows in each slot */
+export function fieldSidesOf(
+  playback: Pick<Playback, "sides" | "down">,
+  side: SideIndex,
+  info: Pick<FieldSide, "trainer" | "party" | "showHpNumbers">
+): FieldSide[] {
+  return Array.from({ length: playback.sides.length / 2 }, (_, position) => {
+    const slot = slotOf(side, position);
+    return { ...info, slot, combatant: playback.sides[slot], down: playback.down[slot] };
+  });
 }
